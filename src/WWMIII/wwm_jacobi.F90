@@ -626,8 +626,7 @@
             END IF
           END IF
 
-          IF (.true.) THEN
-!            WRITE(STAT%FHNDL,*) 'IP=', IP
+!mpch          IF (.true.) THEN
             NumberIterationSolver(IP) = NumberIterationSolver(IP) + 1
             CALL SINGLE_VERTEX_COMPUTATION(JDX, WALOC, eSum, ASPAR_DIAG)
 #ifdef DEBUG
@@ -658,12 +657,10 @@
 #ifdef DEBUG_ITERATION_LOOP
               FieldOut1(IP)=p_is_converged
 #endif
-!              WRITE(STAT%FHNDL,*) 'p_is_converged=', p_is_converged
               IF (IPstatus(IP) .eq. 1) THEN
                 IF (p_is_converged .LT. THR) THEN ! not real ... mostly never touched point or whatorever ...
                   LCONVERGED(IP) = .FALSE. 
                 ELSE IF (.NOT. p_is_converged .LT. THR .AND. p_is_converged .LT. jgs_diff_solverthr) THEN
-                  !write(*,*) ip, p_is_converged, jgs_diff_solverthr
                   LCONVERGED(IP) = .TRUE.
                   is_converged(1) = is_converged(1) + 1
                   IF (WAE_JGS_CFL_LIM) THEN
@@ -672,22 +669,17 @@
                 ENDIF
               END IF
             END IF!JGS_CHKCONV
-          ELSE!test
-            nbPassive = nbPassive + 1
-            IF (JGS_CHKCONV .and. (IPstatus(IP) .eq. 1)) THEN
-              is_converged(1) = is_converged(1) + 1
-            END IF
-          END IF!test
+!mpch          ELSE!test
+!            nbPassive = nbPassive + 1
+!            IF (JGS_CHKCONV .and. (IPstatus(IP) .eq. 1)) THEN
+!              is_converged(1) = is_converged(1) + 1
+!            END IF
+!mpch          END IF!test
         END DO!IP
 
-!        WRITE(*,*) SIZE(LCONVERGED), COUNT(LCONVERGED .eqv. .TRUE.)
 #ifdef DEBUG
         WRITE(STAT%FHNDL,*) 'sumESUM=', sumESUM
 #endif
-!        WRITE(STAT%FHNDL,*) 'is_converged(1)=', is_converged(1)
-!        WRITE(STAT%FHNDL,*) 'NP_RES=', NP_RES
-!        WRITE(STAT%FHNDL,*) 'nbPassive=', nbPassive
-!        WRITE(STAT%FHNDL,*) 'diffconv=', NP_RES - is_converged(1)
         IF (JGS_CHKCONV) THEN
 #ifdef MPI_PARALL_GRID
           CALL MPI_ALLREDUCE(is_converged, itmp(1), 1, itype, MPI_SUM, COMM, ierr)

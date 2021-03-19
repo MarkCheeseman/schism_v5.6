@@ -197,6 +197,7 @@
                      &chi(nsa),chi2(nsa),vsource(nea),sav_c2(nsa),sav_beta(nsa)
       real(rkind) :: swild(max(100,nsa+nvrt+12+ntracers)),swild2(nvrt,12),swild10(max(4,nvrt),12), &
      &swild3(20+ntracers),swild4(2,4)
+      real(rkind), dimension(2*nhtblocks) :: send_buf
 !#ifdef USE_SED
       real(rkind) :: swild_m(6,ntracers),swild_w(3),q2fha(2:nvrt),q2fpha(2:nvrt),epsftmp(nvrt), &
                      &Tpzzntr(nvrt),Dpzzntr(nvrt)  
@@ -1255,8 +1256,14 @@
         enddo !i=1,nhtblocks
 
         !Broadcast flux to all proc's
-        call mpi_allreduce(q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
-        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
+        send_buf(1:nhtblocks) = q_block_lcl(:)
+        send_buf(nhtblocks+1:2*nhtblocks) = real( q_block_lcl(:) )
+        call mpi_allreduce(MPI_IN_PLACE,send_buf,2*nhtblocks,rtype,MPI_SUM,comm,ierr)
+        q_block(:) = send_buf(1:nhtblocks)
+        iq_block(:) = int(send_buf(nhtblocks+1:2*nhtblocks))
+
+!mpch        call mpi_allreduce(q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
+!mpch        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
         do i=1,nhtblocks
           if(iq_block(i)<=0) then
             write(errmsg,*)'MAIN: q_block left out:',i,iq_block(i)

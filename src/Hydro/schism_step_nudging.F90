@@ -197,6 +197,7 @@
                      &chi(nsa),chi2(nsa),vsource(nea),sav_c2(nsa),sav_beta(nsa)
       real(rkind) :: swild(max(100,nsa+nvrt+12+ntracers)),swild2(nvrt,12),swild10(max(4,nvrt),12), &
      &swild3(20+ntracers),swild4(2,4)
+      real(rkind), dimension(2*nhtblocks) :: send_buf
 !#ifdef USE_SED
       real(rkind) :: swild_m(6,ntracers),swild_w(3),q2fha(2:nvrt),q2fpha(2:nvrt),epsftmp(nvrt), &
                      &Tpzzntr(nvrt),Dpzzntr(nvrt)  
@@ -867,15 +868,8 @@
               tmpx1=stokes_vel_sd(1,l+1,jsj)
               tmp2=stokes_vel_sd(2,l,jsj)
               tmpy2=stokes_vel_sd(2,l+1,jsj)
-              !if(ics==1) then
               vnor1=tmp1*snx(jsj)+tmp2*sny(jsj)
               vnor2=tmpx1*snx(jsj)+tmpy2*sny(jsj)
-              !else !lat/lon
-                !vnor1=su2(l,jsj) !normal
-                !vnor2=su2(l+1,jsj)
-                !call project_hvec(tmp1,tmp2,eframe(:,:,i),sframe(:,:,jsj),vnor1,x1)
-                !call project_hvec(tmpx1,tmpy2,eframe(:,:,i),sframe(:,:,jsj),vnor2,x1)
-              !endif !ics
               sum1=sum1+ssign(j,i)*(zs(max(l+1,kbs(jsj)),jsj)-zs(max(l,kbs(jsj)),jsj))*distj(jsj)*(vnor1+vnor2)/2
             enddo !j=1,3
 
@@ -1050,64 +1044,7 @@
       enddo !i
 !$OMP end parallel do
 
-!     !VIMS surface temperature mode added by YC
-!      if(myrank==0) write(16,*)'doing ICM surface T..'
-!      if(iSun==2) then
-!        if(time>=surf_time2) then
-!          surf_time1=surf_time2
-!          surf_time2=surf_time2+86400.
-!          surf_t1=surf_t2
-!          read(62,*)
-!          do i=1,np_global
-!            read(62,*) ipgb,tmp
-!            if(ipgl(ipgb)%rank==myrank) then
-!             surf_t2(ipgl(ipgb)%id)=tmp
-!            endif
-!          enddo
-!        endif !time>=
-!
-!        stratio=(time-surf_time1)/86400.
-!
-!!$OMP parallel do default(shared) private(i)
-!        do i=1,npa
-!          surf_t(i)=surf_t1(i)+stratio*(surf_t2(i)-surf_t1(i))
-!        enddo !i
-!$OMP end parallel do
-!      endif ! iSun=2
 #endif /*USE_ICM*/
-
-!...  Read in temp. and salt for nudging
-!      if(inu_st==2) then
-!        if(time>time_nu) then
-!          irec_nu=irec_nu+1
-!          time_nu=time_nu+step_nu
-!          tnd_nu1=tnd_nu2
-!          snd_nu1=snd_nu2
-!          read(37)floatout
-!          read(35)floatout
-!          if(floatout/=time_nu) then
-!            write(errmsg,*)'Wrong nudging time:',floatout,time_nu
-!            call parallel_abort(errmsg)
-!          endif
-!          do i=1,np_global
-!            read(37)(swild8(j,1),j=1,nvrt)
-!            read(35)(swild8(j,2),j=1,nvrt)
-!            if(ipgl(i)%rank==myrank) then
-!              tnd_nu2(:,ipgl(i)%id)=swild8(1:nvrt,1)
-!              snd_nu2(:,ipgl(i)%id)=swild8(1:nvrt,2)
-!            endif
-!          enddo !i
-!        endif !time>time_nu
-!
-!!       Compute S,T
-!        rat=(time_nu-time)/step_nu
-!        if(rat<0.or.rat>1) then
-!          write(errmsg,*)'Impossible 81:',rat
-!          call parallel_abort(errmsg)
-!        endif
-!        tnd_nu=tnd_nu1+(1-rat)*(tnd_nu2-tnd_nu1)
-!        snd_nu=snd_nu1+(1-rat)*(snd_nu2-snd_nu1)
-!      endif !nudging
 
 !...  Read in tracer nudging
       if(time>time_nu_tr) then
@@ -1146,17 +1083,6 @@
               enddo !m
             enddo !l
 
-!            read(84+k)floatout
-!            if(abs(floatout-time_nu_tr-step_nu_tr)>0.01) then
-!              write(errmsg,*)'Wrong nudging time (2):',floatout,time_nu_tr+step_nu_tr
-!              call parallel_abort(errmsg)
-!            endif
-!            do i=1,np_global
-!              read(84+k)swild9(itmp1:itmp2,:)
-!              if(ipgl(i)%rank==myrank) then
-!                trnd_nu2(itmp1:itmp2,:,ipgl(i)%id)=swild9(itmp1:itmp2,:)
-!              endif
-!            enddo !i
           endif !inu_tr(k)
         enddo !k
         time_nu_tr=time_nu_tr+step_nu_tr !shared among all tracers
@@ -1197,12 +1123,10 @@
         call read_struct_ts(time)
 
         !Message passing to get elev., vel. info for ref. node #2 for each block
-        !do i=1,npa; eta2(i)=iplg(i); enddo !test
         block_refnd2_eta=-1.e6 !init. as flags
         !Post send
         do i=0,nproc-1
           if(nhtsend1(i)/=0) then
-            !if(i==myrank) call parallel_abort('MAIN: illegal comm.(2)')
             call mpi_isend(eta2,1,htsend_type(i),i,601,comm,srqst(i),ierr)
             if(ierr/=MPI_SUCCESS) call parallel_abort('MAIN: send error (2)')
 !'
@@ -1214,7 +1138,6 @@
         !Post recv
         do i=0,nproc-1
           if(nhtrecv1(i)/=0) then
-            !if(i==myrank) call parallel_abort('MAIN: illegal comm.(2)')
             call mpi_irecv(block_refnd2_eta,1,htrecv_type(i),i,601,comm,rrqst(i),ierr)
             if(ierr/=MPI_SUCCESS) call parallel_abort('MAIN: recv error (2)')
 !'
@@ -1241,8 +1164,6 @@
               if(block_refnd2_eta(i)<-1.e6+1) then
                 write(errmsg,*)'MAIN: htexchange not rite:',i,ndgb1,ndgb2,irank
                 call parallel_abort(errmsg)
-              !else
-              !  write(12,*)'htex:',i,ndgb1,ndgb2,irank,block_refnd2_eta(i)
               endif
             else !node #2 inside myrank
               block_refnd2_eta(i)=eta2(ipgl(ndgb2)%id)
@@ -1255,8 +1176,14 @@
         enddo !i=1,nhtblocks
 
         !Broadcast flux to all proc's
-        call mpi_allreduce(q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
-        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
+        send_buf(1:nhtblocks) = q_block_lcl(:)
+        send_buf(nhtblocks+1:2*nhtblocks) = real( iq_block_lcl(:) )
+        call mpi_allreduce(MPI_IN_PLACE,send_buf,2*nhtblocks,rtype,MPI_SUM,comm,ierr)
+        q_block_lcl(:) = send_buf(1:nhtblocks)
+        iq_block_lcl(:) = int( send_buf(nhtblocks+1:2*nhtblocks) )
+
+!mpch        call mpi_allreduce(q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
+!mpch        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
         do i=1,nhtblocks
           if(iq_block(i)<=0) then
             write(errmsg,*)'MAIN: q_block left out:',i,iq_block(i)
@@ -3849,7 +3776,6 @@
 
 !$OMP     master
           call mpi_allreduce(tmp1,tmp,1,rtype,MPI_MAX,comm,ierr)
-!          call mpi_allreduce(swild(3),tmp,1,rtype,MPI_MIN,comm,ierr)
           if(myrank==0) write(16,*)'ELAD, max over/undershoot=',real(tmp),iter
 !$OMP     end master
 !no barrier

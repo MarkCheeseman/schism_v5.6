@@ -171,10 +171,10 @@
       real(4) :: floatout
       real(8) :: dbleout2(1)
 
+      real, dimension(2*nhtblocks) :: send_buf
 
 !     Inter-subdomain backtracking
       logical :: lbt(1),lbtgb(1)
-!      logical :: lbt_l(1), lbtgb_l(1)
       integer :: nbtrk
       type(bt_type) :: btlist(mxnbt) !to avoid conflict with inter_btrack()
 
@@ -182,12 +182,8 @@
       real(rkind) :: alow(max(4,nvrt)),bdia(max(4,nvrt)),cupp(max(4,nvrt)),rrhs(2,nvrt), &
                     &soln(2,nvrt),gam(nvrt),gam2(nvrt),soln2(nvrt)
 
-!     Non-hydrostatic arrays
-!      real(rkind),allocatable :: qhat(:,:),dqnon_dxy(:,:,:),qmatr(:,:,:,:),qir(:,:)
-
 !     Misc 
       integer :: nwild(nea+300),nwild2(ne_global)
-!                 &jcoef(npa*(mnei+1)),ibt_p(npa),ibt_s(nsa)
       real(rkind) :: dfz(2:nvrt),dzz(2:nvrt),deta1_dx(nsa),deta1_dy(nsa),deta2_dx(nsa), &
                      &deta2_dy(nsa),dpr_dx(nsa),dpr_dy(nsa),detp_dx(nsa),detp_dy(nsa), &
                      &sne(3,nvrt),area_e(nvrt),srad_e(nea),qel(np),elbc(npa),hhat(nsa), & !,hhat2(nsa), &
@@ -203,7 +199,6 @@
       !Tsinghua group 0822+q2fha,,q2fpha,epsftmp !1007+Tpzzntr,Dpzzntr     
 !#endif
       real(4) :: swild8(nvrt,2) !used in ST nudging
-!      logical :: lelbc(npa)
 
 !#ifdef FUJITSU
       real(rkind) :: swild_tmp(3)
@@ -225,7 +220,6 @@
 #endif
 !     Tracers
       real(rkind),allocatable :: Bio_bdefp(:,:),tr_tc(:,:),tr_tl(:,:),tsd(:,:)
-!      real(rkind),allocatable :: mix_ds(:,:,:),mix_dfv(:,:) !Tsinghua group !1120:close
 #ifdef USE_WWM
       CHARACTER(LEN=3) :: RADFLAG
       REAL(rkind) ::  dJ_dx(nsa) !AD
@@ -236,7 +230,6 @@
 #ifdef USE_FABM
       real(rkind) :: tau_bottom_nodes(npa)
 #endif
-!      real(4) :: buffer(2*nvrt*nnode_fl+1)
       real(4),allocatable  :: buffer(:,:,:)
 
 #ifdef USE_PETSC
@@ -248,13 +241,6 @@
 #ifdef USE_FABM
       tau_bottom_nodes(:)=0.0d0
 #endif
-
-!      if(nonhydro==1) then
-!        allocate(qhat(nvrt,npa),dqnon_dxy(2,nvrt,nsa),qmatr(nvrt,-1:1,0:(mnei+1),np), &
-!     &qir(nvrt,np),stat=istat)
-!        if(istat/=0) call parallel_abort('STEP: Nonhydro allocation failure')
-!!'
-!      endif
 
       allocate(hp_int(nvrt,nea,2),stat=istat)
       if(istat/=0) call parallel_abort('STEP: other allocation failure')
@@ -282,14 +268,8 @@
       endif
 
 #ifdef USE_SED
-       !allocate(tr_tc(ntracers,nea),tr_tl(ntracers,nea),stat=istat)
        allocate(tr_tc(ntrs(5),nea),tr_tl(ntrs(5),nea),stat=istat)
        if(istat/=0) call parallel_abort('STEP: sed. allocation failure')
-
-!       if(Two_phase_mix==1) then !1120:close
-!         allocate(mix_ds(2,nvrt,nsa),mix_dfv(nvrt,nsa),stat=istat) !Tsinghua group
-!         if(istat/=0) call parallel_abort('STEP: sed. allocation failure')
-!       endif
 #endif
 
 #ifdef USE_WWM
@@ -313,8 +293,6 @@
 
 !     End alloc.
 
-!      do it=iths+1,ntime
-
 #ifdef INCLUDE_TIMING
       wtmp1=mpi_wtime() !Forcing preparation section
 #endif
@@ -326,11 +304,6 @@
 
       time=it*dt 
      
-!Tsinghua group------------------
-!      nstp = 1+MOD(it-1,2) !1120:close
-!      nnew = 3-nstp
-!Tsinghua group------------------
-
 !     Broadcast to global module
       time_stamp=time; it_main=it
 
@@ -374,51 +347,6 @@
         bdef2(i)=bdef(i)/ibdef*min0(it,ibdef)
       enddo !i
 !$OMP end do
-
-!     Derivatives of shape function for sides (elem/ll frame if ics=2)
-!     Put this into _init
-!      do i=1,nea
-!        !Prep (x,y) if ics=2
-!        do j=1,i34(i)
-!          isd=elside(j,i)
-!          in1=nxq(1,j,i34(i)) !local node index
-!          in2=nxq(2,j,i34(i))
-!          swild2(1,j)=(xel(in1,i)+xel(in2,i))/2 !xcj
-!          swild2(2,j)=(yel(in1,i)+yel(in2,i))/2 !ycj
-!        enddo !j
-! 
-!!        tmp0=signa(xcj(elside(1,i)),xcj(elside(2,i)),xcj(elside(3,i)),ycj(elside(1,i)),ycj(elside(2,i)),ycj(elside(3,i))) !area
-!        tmp0=signa(swild2(1,1),swild2(1,2),swild2(1,3),swild2(2,1),swild2(2,2),swild2(2,3)) !area
-!        if(tmp0<=0) call parallel_abort('STEP: area<=0 (1)')
-!        if(i34(i)==3) then
-!          do j=1,i34(i)
-!            !isd1=elside(nxq(1,j,i34(i)),i)
-!            !isd2=elside(nxq(2,j,i34(i)),i)
-!            !dldxy_sd(j,1,i)=(ycj(isd1)-ycj(isd2))/2/tmp0 !dL_j/dx
-!            !dldxy_sd(j,2,i)=(xcj(isd2)-xcj(isd1))/2/tmp0 !dL_j/dy
-!            in1=nxq(1,j,i34(i))
-!            in2=nxq(2,j,i34(i))
-!            dldxy_sd(j,1,i)=(swild2(2,in1)-swild2(2,in2))/2/tmp0 !dL_j/dx
-!            dldxy_sd(j,2,i)=(swild2(1,in2)-swild2(1,in1))/2/tmp0 !dL_j/dy
-!          enddo !j
-!        else  !quad; evaluate at centroid
-!          !tmp2=signa(xcj(elside(1,i)),xcj(elside(3,i)),xcj(elside(4,i)),ycj(elside(1,i)),ycj(elside(3,i)),ycj(elside(4,i)))
-!          tmp2=signa(swild2(1,1),swild2(1,3),swild2(1,4),swild2(2,1),swild2(2,3),swild2(2,4))
-!          if(tmp2<=0) call parallel_abort('STEP: area<=0 (2)')
-!          tmp2=tmp2+tmp0 !area
-!          do j=1,i34(i)
-!            !isd1=elside(nxq(1,j,i34(i)),i)
-!            !isd3=elside(nxq(3,j,i34(i)),i)
-!            !dldxy_sd(j,1,i)=(ycj(isd1)-ycj(isd3))/2/tmp2 !dphi_dx
-!            !dldxy_sd(j,2,i)=(xcj(isd3)-xcj(isd1))/2/tmp2 !dphi_dy
-!            in1=nxq(1,j,i34(i))
-!            in2=nxq(3,j,i34(i))
-!            dldxy_sd(j,1,i)=(swild2(2,in1)-swild2(2,in2))/2/tmp2 !dL_j/dx
-!            dldxy_sd(j,2,i)=(swild2(1,in2)-swild2(1,in1))/2/tmp2 !dL_j/dy
-!
-!          enddo !j
-!        endif !i34(i)
-!      enddo !i=1,nea
 
 !...  Earth tidal potential at nodes: pre-compute to save time
 !...
@@ -574,13 +502,6 @@
         enddo !i
 !$OMP end parallel do
 
-!       Overwrite wind with wind.th
-!        read(22,*)tmp,wx2,wy2
-!        windx1=wx2; windy1=wy2
-!        windx2=wx2; windy2=wy2
-!        windx=wx2; windy=wy2
-!       End
-
 !       Read in new flux values for next step
         if(nws==3) read(23,*) tmp,fluxsu00,srad00
       endif !nws>=2
@@ -720,10 +641,7 @@
         call hgrad_nodes(2,0,nvrt,npa,nsa,uu2,dr_dxy)
         do i=1,ns
           if(idry_s(i)==0) then
-            !n1=isidenode(1,i); n2=isidenode(2,i)
-            !f*v_s-du/dy*v_s
             wwave_force(1,:,i)=wwave_force(1,:,i)+(cori(i)-dr_dxy(2,:,i))*stokes_vel_sd(2,:,i)
-            !-f*u_s+du/dy*u_s
             wwave_force(2,:,i)=wwave_force(2,:,i)+(-cori(i)+dr_dxy(2,:,i))*stokes_vel_sd(1,:,i)
           endif
         enddo !i
@@ -731,10 +649,7 @@
         call hgrad_nodes(2,0,nvrt,npa,nsa,vv2,dr_dxy)
         do i=1,ns
           if(idry_s(i)==0) then
-            !n1=isidenode(1,i); n2=isidenode(2,i)
-            !dv/dx*v_s
             wwave_force(1,:,i)=wwave_force(1,:,i)+dr_dxy(1,:,i)*stokes_vel_sd(2,:,i)
-            !-dv/dx*u_s
             wwave_force(2,:,i)=wwave_force(2,:,i)-dr_dxy(1,:,i)*stokes_vel_sd(1,:,i)
           endif
         enddo !i
@@ -765,28 +680,16 @@
           wwave_force(2,:,j)=wwave_force(2,:,j)-tmp2
         enddo !j
 
-!        do j=1,np
-!          tmp=sqrt(sbr(1,j)**2+sbr(2,j)**2)
-!        enddo
-!JZ: what's this? nd is undefined
-!        if(myrank==0) write(16,*)'norm of SBR',it,tmp/nd
-
         do j=1,ns !resident
           n1=isidenode(1,j); n2=isidenode(2,j)
           htot=max(h0,dps(j)+(eta2(n1)+eta2(n2))/2)
          
-!          if((idry(n1)==1).or.(idry(n2)==1)) cycle
- 
-!!         if(idry_s(j)==1.or.isbs(j)>0) cycle          !Wet side
-
           if(kbs(j)+1==nvrt) then !2D side
             if(idry_s(j)==1.or.isbs(j)>0) cycle          !Wet side
             wwave_force(1,:,j)=wwave_force(1,:,j)-sum(sbr(1,isidenode(:,j)))/(2.d0*htot) !/rho0!/grav; dimension: m/s/s
             wwave_force(2,:,j)=wwave_force(2,:,j)-sum(sbr(2,isidenode(:,j)))/(2.d0*htot) !/rho0!/grav
           else !3D
             tmp0=sum(out_wwm(isidenode(:,j),1))/2.d0 !Hs
-!            if(idry_s(j)==1.or.isbs(j)>0.or.tmp0<=0.1) cycle 
-!            if(idry_s(j)==1.or.isbs(j)>0) cycle 
 
 !Guerin: the tmp0/htot<0.1 condition is related to the use of a cosh
 !profile for the vertical distribution of qdm induced by wave breaking
@@ -796,7 +699,6 @@
 !           !Wet side
             swild=0
             do k=kbs(j),nvrt
-              !swild(k)=cosh(5*sqrt(2.d0)*(zs(k,j)+dps(j)))/tmp0
               swild(k)=cosh((dps(j)+zs(k,j))/(0.2d0*tmp0)) !see Eq. 53 of Uchiyama et al. (2010)
             enddo !k
     
@@ -867,15 +769,8 @@
               tmpx1=stokes_vel_sd(1,l+1,jsj)
               tmp2=stokes_vel_sd(2,l,jsj)
               tmpy2=stokes_vel_sd(2,l+1,jsj)
-              !if(ics==1) then
               vnor1=tmp1*snx(jsj)+tmp2*sny(jsj)
               vnor2=tmpx1*snx(jsj)+tmpy2*sny(jsj)
-              !else !lat/lon
-                !vnor1=su2(l,jsj) !normal
-                !vnor2=su2(l+1,jsj)
-                !call project_hvec(tmp1,tmp2,eframe(:,:,i),sframe(:,:,jsj),vnor1,x1)
-                !call project_hvec(tmpx1,tmpy2,eframe(:,:,i),sframe(:,:,jsj),vnor2,x1)
-              !endif !ics
               sum1=sum1+ssign(j,i)*(zs(max(l+1,kbs(jsj)),jsj)-zs(max(l,kbs(jsj)),jsj))*distj(jsj)*(vnor1+vnor2)/2
             enddo !j=1,3
 
@@ -1050,64 +945,7 @@
       enddo !i
 !$OMP end parallel do
 
-!     !VIMS surface temperature mode added by YC
-!      if(myrank==0) write(16,*)'doing ICM surface T..'
-!      if(iSun==2) then
-!        if(time>=surf_time2) then
-!          surf_time1=surf_time2
-!          surf_time2=surf_time2+86400.
-!          surf_t1=surf_t2
-!          read(62,*)
-!          do i=1,np_global
-!            read(62,*) ipgb,tmp
-!            if(ipgl(ipgb)%rank==myrank) then
-!             surf_t2(ipgl(ipgb)%id)=tmp
-!            endif
-!          enddo
-!        endif !time>=
-!
-!        stratio=(time-surf_time1)/86400.
-!
-!!$OMP parallel do default(shared) private(i)
-!        do i=1,npa
-!          surf_t(i)=surf_t1(i)+stratio*(surf_t2(i)-surf_t1(i))
-!        enddo !i
-!$OMP end parallel do
-!      endif ! iSun=2
 #endif /*USE_ICM*/
-
-!...  Read in temp. and salt for nudging
-!      if(inu_st==2) then
-!        if(time>time_nu) then
-!          irec_nu=irec_nu+1
-!          time_nu=time_nu+step_nu
-!          tnd_nu1=tnd_nu2
-!          snd_nu1=snd_nu2
-!          read(37)floatout
-!          read(35)floatout
-!          if(floatout/=time_nu) then
-!            write(errmsg,*)'Wrong nudging time:',floatout,time_nu
-!            call parallel_abort(errmsg)
-!          endif
-!          do i=1,np_global
-!            read(37)(swild8(j,1),j=1,nvrt)
-!            read(35)(swild8(j,2),j=1,nvrt)
-!            if(ipgl(i)%rank==myrank) then
-!              tnd_nu2(:,ipgl(i)%id)=swild8(1:nvrt,1)
-!              snd_nu2(:,ipgl(i)%id)=swild8(1:nvrt,2)
-!            endif
-!          enddo !i
-!        endif !time>time_nu
-!
-!!       Compute S,T
-!        rat=(time_nu-time)/step_nu
-!        if(rat<0.or.rat>1) then
-!          write(errmsg,*)'Impossible 81:',rat
-!          call parallel_abort(errmsg)
-!        endif
-!        tnd_nu=tnd_nu1+(1-rat)*(tnd_nu2-tnd_nu1)
-!        snd_nu=snd_nu1+(1-rat)*(snd_nu2-snd_nu1)
-!      endif !nudging
 
 !...  Read in tracer nudging
       if(time>time_nu_tr) then
@@ -1146,17 +984,6 @@
               enddo !m
             enddo !l
 
-!            read(84+k)floatout
-!            if(abs(floatout-time_nu_tr-step_nu_tr)>0.01) then
-!              write(errmsg,*)'Wrong nudging time (2):',floatout,time_nu_tr+step_nu_tr
-!              call parallel_abort(errmsg)
-!            endif
-!            do i=1,np_global
-!              read(84+k)swild9(itmp1:itmp2,:)
-!              if(ipgl(i)%rank==myrank) then
-!                trnd_nu2(itmp1:itmp2,:,ipgl(i)%id)=swild9(itmp1:itmp2,:)
-!              endif
-!            enddo !i
           endif !inu_tr(k)
         enddo !k
         time_nu_tr=time_nu_tr+step_nu_tr !shared among all tracers
@@ -1197,12 +1024,10 @@
         call read_struct_ts(time)
 
         !Message passing to get elev., vel. info for ref. node #2 for each block
-        !do i=1,npa; eta2(i)=iplg(i); enddo !test
         block_refnd2_eta=-1.e6 !init. as flags
         !Post send
         do i=0,nproc-1
           if(nhtsend1(i)/=0) then
-            !if(i==myrank) call parallel_abort('MAIN: illegal comm.(2)')
             call mpi_isend(eta2,1,htsend_type(i),i,601,comm,srqst(i),ierr)
             if(ierr/=MPI_SUCCESS) call parallel_abort('MAIN: send error (2)')
 !'
@@ -1214,7 +1039,6 @@
         !Post recv
         do i=0,nproc-1
           if(nhtrecv1(i)/=0) then
-            !if(i==myrank) call parallel_abort('MAIN: illegal comm.(2)')
             call mpi_irecv(block_refnd2_eta,1,htrecv_type(i),i,601,comm,rrqst(i),ierr)
             if(ierr/=MPI_SUCCESS) call parallel_abort('MAIN: recv error (2)')
 !'
@@ -1241,8 +1065,6 @@
               if(block_refnd2_eta(i)<-1.e6+1) then
                 write(errmsg,*)'MAIN: htexchange not rite:',i,ndgb1,ndgb2,irank
                 call parallel_abort(errmsg)
-              !else
-              !  write(12,*)'htex:',i,ndgb1,ndgb2,irank,block_refnd2_eta(i)
               endif
             else !node #2 inside myrank
               block_refnd2_eta(i)=eta2(ipgl(ndgb2)%id)
@@ -1255,8 +1077,13 @@
         enddo !i=1,nhtblocks
 
         !Broadcast flux to all proc's
-        call mpi_allreduce(q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
-        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
+        send_buf(1:nhtblocks) = q_block(:)
+        send_buf(nhtblocks+1:2*nhtblocks) = real( iq_block(:) )
+        call mpi_allreduce( MPI_IN_PLACE,send_buf, 2*nhtblocks, rtype, MPI_SUM, comm, ierr )
+        q_block(:) = send_buf(1:nhtblocks)
+        iq_block(:) = int( send_buf(nhtblocks+1:2*nhtblocks) )
+!mpch        call mpi_allreduce( q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
+!mpch        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
         do i=1,nhtblocks
           if(iq_block(i)<=0) then
             write(errmsg,*)'MAIN: q_block left out:',i,iq_block(i)
@@ -1281,13 +1108,10 @@
           jblock=minval(isblock_nd(1,elnode(1:i34(i),i)))
           if(jblock>0) then; if(structures(jblock)%install) then
             isblock_el(i)=jblock
-            !write(12,*)'Block elem:',jblock,ielg(i)
           endif; endif
         enddo !i
 !$OMP   end do
 
-        !isblock_sd(1,1:nsa): active block #
-        !isblock_sd(2,1:nsa): face # or -1 (inside block) or 0
 !$OMP   workshare
         isblock_sd=0 !init
 !$OMP   end workshare
@@ -1303,9 +1127,6 @@
               if(isblock_nd(2,n1)==isblock_nd(2,n2)) then !not internal; on same face
                  jface=isblock_nd(2,n1)
                  isblock_sd(2,i)=jface !face #
-
-                 !Check
-                 !write(12,*)'Block face side:',jblock,jface,iplg(isidenode(1:2,i)),i,ns
 
                  !For resident sides, compute local cross sectional area
                 if(i<=ns) then 
@@ -1340,10 +1161,6 @@
 #ifdef INCLUDE_TIMING
         wtimer(3,2)=wtimer(3,2)+mpi_wtime()-cwtmp
 #endif
-
-        !Check
-        !write(12,*)'Block face area:',it,(real(buf2(i,1:2)),i=1,nhtblocks) !,(real(buf1(i,1:2)),i=1,nhtblocks)
-        !write(12,*)it,(real(buf2(i,1:2)),i=1,nhtblocks) !,(real(buf1(i,1:2)),i=1,nhtblocks)
 
         !Compute (uniform) normal vel. at faces for each block
         !Positive is from face '1' to '2' (given in dir_block())
