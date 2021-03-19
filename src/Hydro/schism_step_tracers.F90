@@ -1262,8 +1262,6 @@
         q_block(:) = send_buf(1:nhtblocks)
         iq_block(:) = int(send_buf(nhtblocks+1:2*nhtblocks))
 
-!mpch        call mpi_allreduce(q_block_lcl,q_block,nhtblocks,rtype,MPI_SUM,comm,ierr)
-!mpch        call mpi_allreduce(iq_block_lcl,iq_block,nhtblocks,itype,MPI_SUM,comm,ierr)
         do i=1,nhtblocks
           if(iq_block(i)<=0) then
             write(errmsg,*)'MAIN: q_block left out:',i,iq_block(i)
@@ -3596,8 +3594,6 @@
             xt=0
             yt=0
             !centroid coord. for nudging
-!mpch            call project_pt('g2l',xctr(ie0),yctr(ie0),zctr(ie0), &
-!     &(/xcj(isd0),ycj(isd0),zcj(isd0)/),swild10_tmp,xctr2,yctr2,tmp)
             call global_to_local_pt_project(xctr(ie0),yctr(ie0),zctr(ie0), &
      &(/xcj(isd0),ycj(isd0),zcj(isd0)/),swild10_tmp,xctr2,yctr2,tmp)
           endif !ics
@@ -4389,10 +4385,6 @@
                   yn2=ynd(n2)
                 else !to eframe
 !replace with xel, yel?
-!mpch                  call project_pt('g2l',xnd(n1),ynd(n1),znd(n1),(/xctr(i),yctr(i),zctr(i)/), &
-!     &eframe(:,:,i),xn1,yn1,tmp)
-!                  call project_pt('g2l',xnd(n2),ynd(n2),znd(n2),(/xctr(i),yctr(i),zctr(i)/), &
-!     &eframe(:,:,i),xn2,yn2,tmp)
                   call global_to_local_pt_project(xnd(n1),ynd(n1),znd(n1),(/xctr(i),yctr(i),zctr(i)/), &
      &eframe(:,:,i),xn1,yn1,tmp)
                   call global_to_local_pt_project(xnd(n2),ynd(n2),znd(n2),(/xctr(i),yctr(i),zctr(i)/), &
@@ -4406,8 +4398,6 @@
                   alow(j)=xctr(ie)-xctr(i)
                   bdia(j)=yctr(ie)-yctr(i)
                 else !to eframe
-!mpch                  call project_pt('g2l',xctr(ie),yctr(ie),zctr(ie),(/xctr(i),yctr(i),zctr(i)/), &
-!     &eframe(:,:,i),xctr2,yctr2,tmp)
                   call global_to_local_pt_project(xctr(ie),yctr(ie),zctr(ie),(/xctr(i),yctr(i),zctr(i)/), &
      &eframe(:,:,i),xctr2,yctr2,tmp)
                   alow(j)=xctr2

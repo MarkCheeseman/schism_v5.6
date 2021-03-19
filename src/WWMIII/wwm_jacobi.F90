@@ -618,35 +618,26 @@
 
           WALOC = AC2(:,:,IP)
 
-          IF (WAE_JGS_CFL_LIM) THEN
-            IF (NumberOperationJGS(IP) .lt. CFLadvgeoI(IP)) THEN
-              test=.TRUE.
-            ELSE
-              test=.FALSE.
-            END IF
-          END IF
-
-!mpch          IF (.true.) THEN
-            NumberIterationSolver(IP) = NumberIterationSolver(IP) + 1
-            CALL SINGLE_VERTEX_COMPUTATION(JDX, WALOC, eSum, ASPAR_DIAG)
+          NumberIterationSolver(IP) = NumberIterationSolver(IP) + 1
+          CALL SINGLE_VERTEX_COMPUTATION(JDX, WALOC, eSum, ASPAR_DIAG)
 #ifdef DEBUG
-            sumESUM = sumESUM + sum(abs(eSum))
+          sumESUM = sumESUM + sum(abs(eSum))
 #endif
-            eSum=eSum/ASPAR_DIAG
+          eSum=eSum/ASPAR_DIAG
 
-            IF (MELIM .EQ. 1) THEN
+          IF (MELIM .EQ. 1) THEN
               CALL GET_MAXDAC(IP,MAXDAC)
               CALL ACTION_LIMITER_LOCAL(MAXDAC,AC1(:,:,IP),ESUM,SSLIM)
-            ENDIF
-            IF (LMAXETOT) CALL BREAKING_LIMITER_LOCAL(IP,ESUM,SSBRL)
+          ENDIF
+          IF (LMAXETOT) CALL BREAKING_LIMITER_LOCAL(IP,ESUM,SSBRL)
 
-            IF (BLOCK_GAUSS_SEIDEL) THEN
+          IF (BLOCK_GAUSS_SEIDEL) THEN
               AC2(:,:,IP)=eSum
-            ELSE
+          ELSE
               U_JACOBI(:,:,IP)=eSum
-            END IF
+          END IF
 
-            IF (JGS_CHKCONV) THEN
+          IF (JGS_CHKCONV) THEN
               Sum_new = sum(eSum)
               if (Sum_new .gt. thr8) then
                 DiffNew=sum(abs(WALOC - eSum))
@@ -658,23 +649,17 @@
               FieldOut1(IP)=p_is_converged
 #endif
               IF (IPstatus(IP) .eq. 1) THEN
-                IF (p_is_converged .LT. THR) THEN ! not real ... mostly never touched point or whatorever ...
+              IF (p_is_converged .LT. THR) THEN ! not real ... mostly never touched point or whatorever ...
                   LCONVERGED(IP) = .FALSE. 
-                ELSE IF (.NOT. p_is_converged .LT. THR .AND. p_is_converged .LT. jgs_diff_solverthr) THEN
+              ELSE IF (.NOT. p_is_converged .LT. THR .AND. p_is_converged .LT. jgs_diff_solverthr) THEN
                   LCONVERGED(IP) = .TRUE.
                   is_converged(1) = is_converged(1) + 1
                   IF (WAE_JGS_CFL_LIM) THEN
                     NumberOperationJGS(IP) = NumberOperationJGS(IP) +1
                   END IF
-                ENDIF
-              END IF
-            END IF!JGS_CHKCONV
-!mpch          ELSE!test
-!            nbPassive = nbPassive + 1
-!            IF (JGS_CHKCONV .and. (IPstatus(IP) .eq. 1)) THEN
-!              is_converged(1) = is_converged(1) + 1
-!            END IF
-!mpch          END IF!test
+              ENDIF
+              ENDIF
+          END IF!JGS_CHKCONV
         END DO!IP
 
 #ifdef DEBUG
@@ -692,12 +677,14 @@
         IF (BLOCK_GAUSS_SEIDEL) THEN
           CALL EXCHANGE_P4D_WWM(AC2)
         ELSE
+          AC2 = U_JACOBI
           CALL EXCHANGE_P4D_WWM(U_JACOBI)
         END IF
-#endif
+#else
         IF (.NOT. BLOCK_GAUSS_SEIDEL) THEN
           AC2 = U_JACOBI
         ENDIF
+#endif
 #ifdef DEBUG
         WRITE(STAT%FHNDL,*) ' After iteration sum(AC2)=', sum(abs(AC2))
 #endif
@@ -728,13 +715,10 @@
         ! Check via the norm
         !
         IF (L_SOLVER_NORM) THEN
-          CALL COMPUTE_JACOBI_SOLVER_ERROR(MaxNorm, SumNorm)
-          IF (sqrt(SumNorm) .le. WAE_SOLVERTHR) THEN
-            EXIT
-          END IF
-        END IF
-      END DO
-      WRITE(STAT%FHNDL,*) 'nbIter=', nbIter
+          CALL COMPUTE_JACOBI_SOLVER_ERROR(SumNorm)
+          IF (sqrt(SumNorm) .le. WAE_SOLVERTHR) EXIT
+        ENDIF
+      ENDDO
 #ifdef DEBUG
       CALL LOCAL_NODE_PRINT(20506, "After Jacobi Iteration")
 #endif
@@ -1223,24 +1207,17 @@
 !**********************************************************************
 !*                                                                    *
 !**********************************************************************
-      SUBROUTINE COMPUTE_JACOBI_SOLVER_ERROR(MaxNorm, SumNorm)
+      SUBROUTINE COMPUTE_JACOBI_SOLVER_ERROR(SumNorm)
       IMPLICIT NONE
-      real(rkind), intent(out) :: MaxNorm, SumNorm
-      integer IP
-      integer ID1, ID2, ID, IS, IP_ADJ, IADJ
+      real(rkind), intent(out) :: SumNorm
+      integer :: IP,ID1, ID2, ID, IS, IP_ADJ, IADJ
 #ifdef MPI_PARALL_GRID
-      REAL(rkind) :: Norm_L2_gl(NUMSIG,NUMDIR), Norm_LINF_gl(NUMSIG,NUMDIR)
+      REAL(rkind), DIMENSION(NUMSIG,NUMDIR) :: Norm_L2_gl
 #endif
-      REAL(rkind) :: Norm_L2(NUMSIG,NUMDIR), Norm_LINF(NUMSIG,NUMDIR)
-      REAL(rkind) :: ASPAR_DIAG(NUMSIG,NUMDIR), WALOC(NUMSIG,NUMDIR)
-      REAL(rkind) :: CP_THE(NUMSIG,NUMDIR), CM_THE(NUMSIG,NUMDIR)
-      REAL(rkind) :: CP_SIG(NUMSIG,NUMDIR), CM_SIG(NUMSIG,NUMDIR)
-      REAL(rkind) :: A_THE(NUMSIG,NUMDIR), C_THE(NUMSIG,NUMDIR)
-      REAL(rkind) :: A_SIG(NUMSIG,NUMDIR), C_SIG(NUMSIG,NUMDIR)
-      REAL(rkind) :: BLOC(NUMSIG,NUMDIR)
-      REAL(rkind) :: NEG_P(NUMSIG,NUMDIR)
+      REAL(rkind), DIMENSION(NUMSIG,NUMDIR) :: Norm_L2, ASPAR_DIAG, WALOC, CP_THE, CM_THE,&
+                                             & CP_SIG, CM_SIG, A_THE, C_THE, A_SIG, C_SIG,&
+                                             & BLOC, NEG_P
       Norm_L2=0
-      Norm_LINF=0
       DO IP=1,NP_RES
         WALOC = AC2(:,:,IP)
         IF (ASPAR_LOCAL_LEVEL .eq. 0) THEN
@@ -1394,15 +1371,15 @@
         IF (IPstatus(IP) .eq. 1) THEN
           Norm_L2 = Norm_L2 + (eSum**2)
         END IF
-        Norm_LINF = max(Norm_LINF, abs(eSum))
       END DO
 #ifdef MPI_PARALL_GRID
-      CALL MPI_ALLREDUCE(Norm_LINF, Norm_LINF_gl, NUMSIG*NUMDIR,rtype,MPI_MAX,comm,ierr)
-      CALL MPI_ALLREDUCE(Norm_L2, Norm_L2_gl, NUMSIG*NUMDIR, rtype,MPI_SUM,comm,ierr)
-      MaxNorm = maxval(Norm_L2_gl)
+! MPCH
+! Since addition is associative, couldn't the summation be done mostly
+! locally?
+!      CALL MPI_ALLREDUCE(Norm_L2, Norm_L2_gl, NUMSIG*NUMDIR, rtype,MPI_SUM,comm,ierr)
       SumNorm = sum(Norm_L2_gl)
+      call MPI_Allreduce( MPI_IN_PLACE, SumNorm, 1, rtype, MPI_SUM, comm, ierr )
 #else
-      MaxNorm = maxval(Norm_L2)
       SumNorm = sum(Norm_L2)
 #endif
       END SUBROUTINE

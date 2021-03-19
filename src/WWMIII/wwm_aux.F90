@@ -655,7 +655,6 @@
         REAL(rkind), INTENT(OUT) :: CONV1, CONV2, CONV3, CONV4, CONV5
 
         INTEGER :: I, IP, IE, IS, ID, NI(3), ITMP
-!mpch        INTEGER :: IPCONV1, IPCONV2, IPCONV3, IPCONV4, IPCONV5, ISCONV(MNP), ITMP
         INTEGER :: ISCONV(MNP)
         REAL(rkind)  :: SUMAC, WALOC(NUMSIG,NUMDIR)
         REAL(rkind)  :: ETOT, EAD, DS, HS2, KD
@@ -666,11 +665,6 @@
         real(rkind), dimension(5) :: conv_array
 
         IPCONV(:) = 0
-!mpch        IPCONV1 = 0
-!        IPCONV2 = 0
-!        IPCONV3 = 0
-!        IPCONV4 = 0
-!        IPCONV5 = 0
 
 #ifndef MPI_PARALL_GRID
         DO IP = 1, MNP
@@ -740,13 +734,7 @@
 
           IF (DEP(IP) .LT. DMIN .OR. SUMAC .LT. THR .OR. IOBP(IP) .EQ. 2 .OR. HS2 .LT. THR) THEN
              IPCONV = IPCONV + 1 ! Summation of the converged grid points ...
-!mpch            IPCONV1 = IPCONV1 + 1 ! Summation of the converged grid points ...
-!            IPCONV2 = IPCONV2 + 1
-!            IPCONV3 = IPCONV3 + 1
-!            IPCONV4 = IPCONV4 + 1
-!            IPCONV5 = IPCONV5 + 1
             ISCONV(IP) = 1
-            !write(dbg%fhndl,*) 'boundary -------1------', TIME, IP, IP_IS_STEADY(IP)
             CYCLE
           ELSE 
             CONVK1 = ABS(HSOLD(IP)-HS2)/HS2
@@ -759,17 +747,10 @@
             IF (CONVK3 .LT. EPSH3) IPCONV(3) = IPCONV(3) + 1
             IF (CONVK4 .LT. EPSH4) IPCONV(4) = IPCONV(4) + 1
             IF (CONVK5 .LT. EPSH5) IPCONV(5) = IPCONV(5) + 1
-!mpch            IF (CONVK1 .LT. EPSH1) IPCONV1 = IPCONV1 + 1 
-!            IF (CONVK2 .LT. EPSH2) IPCONV2 = IPCONV2 + 1
-!            IF (CONVK3 .LT. EPSH3) IPCONV3 = IPCONV3 + 1
-!            IF (CONVK4 .LT. EPSH4) IPCONV4 = IPCONV4 + 1
-!            IF (CONVK5 .LT. EPSH5) IPCONV5 = IPCONV5 + 1
             IF (CONVK1 .LT. EPSH1 .AND. CONVK2 .LT. EPSH2 .AND. CONVK3 .LT. EPSH3 .AND. CONVK4 .LT. EPSH4 .AND. CONVK5 .LT. EPSH5) THEN
               ISCONV(IP) = 1 
-              !write(dbg%fhndl,*) 'converged -------2------', TIME, IP, IP_IS_STEADY(IP)
             ELSE
               ISCONV(IP) = 0
-              !write(dbg%fhndl,*) 'not converged -------3------', TIME, IP, IP_IS_STEADY(IP)
             ENDIF
           END IF
           HSOLD(IP)    = HS2
@@ -812,27 +793,6 @@
         CONV3 = conv_array(3) 
         CONV4 = conv_array(4) 
         CONV5 = conv_array(5) 
-!mpch        CALL MPI_ALLREDUCE(IPCONV1, itmp, 1, itype, MPI_SUM, COMM, ierr)
-!        IPCONV1 = itmp
-!        CALL MPI_ALLREDUCE(IPCONV2, itmp, 1, itype, MPI_SUM, COMM, ierr)
-!        IPCONV2 = itmp
-!        CALL MPI_ALLREDUCE(IPCONV3, itmp, 1, itype, MPI_SUM, COMM, ierr)
-!        IPCONV3 = itmp
-!        CALL MPI_ALLREDUCE(IPCONV4, itmp, 1, itype, MPI_SUM, COMM, ierr)
-!        IPCONV4 = itmp
-!        CALL MPI_ALLREDUCE(IPCONV5, itmp, 1, itype, MPI_SUM, COMM, ierr)
-!        IPCONV5 = itmp
-!        CONV1 = MyREAL(IPCONV1)/MyREAL(NP_GLOBAL)*100.0
-!        CONV2 = MyREAL(IPCONV2)/MyREAL(NP_GLOBAL)*100.0
-!        CONV3 = MyREAL(IPCONV3)/MyREAL(NP_GLOBAL)*100.0
-!        CONV4 = MyREAL(IPCONV4)/MyREAL(NP_GLOBAL)*100.0
-!        CONV5 = MyREAL(IPCONV5)/MyREAL(NP_GLOBAL)*100.0
-#else
-!mpch        CONV1 = MyREAL(IPCONV1)/MyREAL(MNP)*100.0
-!        CONV2 = MyREAL(IPCONV2)/MyREAL(MNP)*100.0
-!        CONV3 = MyREAL(IPCONV3)/MyREAL(MNP)*100.0
-!        CONV4 = MyREAL(IPCONV4)/MyREAL(MNP)*100.0
-!        CONV5 = MyREAL(IPCONV5)/MyREAL(MNP)*100.0
 #endif
 
 #ifdef MPI_PARALL_GRID

@@ -30,15 +30,10 @@ subroutine init_inter_btrack
 !-------------------------------------------------------------------------------
 ! Initialize data-types for inter-subdomain backtracking.
 !-------------------------------------------------------------------------------
-!#ifdef USE_MPIMODULE
-!  use mpi
-!#endif
   use schism_glbl
   use schism_msgp
   implicit none
-!#ifndef USE_MPIMODULE
   include 'mpif.h'
-!#endif
   integer :: blockl(2),types(2),nmm
 #if MPIVERSION==1
   integer :: displ(2),base
@@ -107,15 +102,10 @@ subroutine inter_btrack(itime,nbt,btlist)
 ! Output:
 !   btlist: list of completed inter-subdomain trajectories; not in original order
 !-------------------------------------------------------------------------------
-!#ifdef USE_MPIMODULE
-!  use mpi
-!#endif
   use schism_glbl
   use schism_msgp
   implicit none
-!#ifndef USE_MPIMODULE
   include 'mpif.h'
-!#endif
 
   integer,intent(in) :: itime
   integer,intent(in) :: nbt
@@ -155,11 +145,7 @@ subroutine inter_btrack(itime,nbt,btlist)
 #endif
 
   ! Index of wall-timer
-!  if(imode==1) then
     icw=4
-!  else
-!    icw=9
-!  endif
 
   ! Compute max nbt for dimension parameter
 #ifdef INCLUDE_TIMING
@@ -187,8 +173,6 @@ subroutine inter_btrack(itime,nbt,btlist)
   bbtsend=1; bbtrecv=1; !blocksize is always 1
 #endif
 
-!  write(30,*)'Mark 1',nnbr,mxnbt,iegrpv(btlist(1:nbt)%iegb)
-
   ! Initialize send queue
   nbts=nbt
   btsendq(1:nbts)=btlist(1:nbts)
@@ -208,8 +192,6 @@ subroutine inter_btrack(itime,nbt,btlist)
   ! Init communication timer
   cwtmp=mpi_wtime()
 #endif
-
-!  write(30,*)'Mark 2'
 
   ! Count and index sends
   nbtsend=0
@@ -253,16 +235,12 @@ subroutine inter_btrack(itime,nbt,btlist)
     if(ierr/=MPI_SUCCESS) call parallel_abort('INTER_BTRACK: isend 700',ierr)
   enddo
 
-!  write(30,*)'Mark 4'
-
   ! Wait for recvs to complete
   call mpi_waitall(nnbr,btrecv_rqst,btrecv_stat,ierr)
   if(ierr/=MPI_SUCCESS) call parallel_abort('INTER_BTRACK: waitall recv 700',ierr)
   ! Wait for sends to complete
   call mpi_waitall(nnbr,btsend_rqst,btsend_stat,ierr)
   if(ierr/=MPI_SUCCESS) call parallel_abort('INTER_BTRACK: waitall send 700',ierr)
-
-!  write(30,*)'Mark 4.5'
 
   ! Set MPI bt recv datatypes
   i=0 !total # of recv from all neighbors 
@@ -315,8 +293,6 @@ subroutine inter_btrack(itime,nbt,btlist)
     endif
   enddo
 
-!  write(30,*)'Mark 6'
-
 #ifdef INCLUDE_TIMING
   ! Add to communication timer
   wtimer(icw,2)=wtimer(icw,2)+mpi_wtime()-cwtmp
@@ -352,8 +328,6 @@ subroutine inter_btrack(itime,nbt,btlist)
   wtimer(icw,2)=wtimer(icw,2)+mpi_wtime()-cwtmp
 #endif
 
-!  write(30,*)'Mark 7'
-
   ! Perform local backtracking for received trajectories
   ! Process several neighbors at a time as soon as the info is received from them
 !$OMP parallel if(ncmplt>nthreads) default(shared) private(ii,inbr,j,i,ie,lexit)
@@ -364,15 +338,11 @@ subroutine inter_btrack(itime,nbt,btlist)
       i=ibtrecv(j,inbr)+1
       ie=iegl(btrecvq(i)%iegb)%id
 
-!      write(12,*)'btrack #',ii,btrecvq(i) !ielg(ie),btrecvq(i)%jvrt,btrecvq(i)%rank
-
       call btrack(btrecvq(i)%l0,btrecvq(i)%i0gb,btrecvq(i)%isbndy,btrecvq(i)%j0, &
 &btrecvq(i)%adv,btrecvq(i)%gcor0,btrecvq(i)%frame0,btrecvq(i)%dtbk,btrecvq(i)%vis, &
 &btrecvq(i)%rt,btrecvq(i)%rt2,btrecvq(i)%ut,btrecvq(i)%vt,btrecvq(i)%wt, &
 &ie,btrecvq(i)%jvrt,btrecvq(i)%xt,btrecvq(i)%yt,btrecvq(i)%zt, &
 &btrecvq(i)%sclr,lexit)
-
-!      write(12,*)'btrack #',ii,btrecvq(i) !ielg(ie),btrecvq(i)%jvrt,btrecvq(i)%rank
 
       if(lexit) then !backtracking exits augmented subdomain
 !$OMP   critical
@@ -720,8 +690,6 @@ end subroutine inter_btrack
       use schism_glbl
       use schism_msgp, only : parallel_abort,myrank
       implicit none
-!      real(rkind), parameter :: per1=1.e-3 !used to check error in tracking
-!      real(rkind), parameter :: safety=0.8 !safyty factor in estimating time step
 
       integer, intent(in) :: l_ns,ipsgb,ifl_bnd,j0,iadvf
       real(rkind), intent(in) :: gcor0(3),frame0(3,3),dtbk,vis_coe
@@ -746,17 +714,6 @@ end subroutine inter_btrack
      &swild(10),swild2(10,nvrt),swild3(nvrt) 
       real(rkind) :: al_beta(mnei_kr+3,4),uvdata(mnei_kr,3) 
       logical :: lrk
-
-!     Constants used in 5th order R-K
-!      a(2)=0.2; a(3)=0.3; a(4)=0.6; a(5)=1; a(6)=0.875; a(7)=1
-!      b(2,1)=0.2; b(3,1)=0.075; b(3,2)=0.225; b(4,1)=0.3; b(4,2)=-0.9; b(4,3)=1.2
-!      b(5,1)=-11./54; b(5,2)=2.5; b(5,3)=-70./27; b(5,4)=35./27
-!      b(6,1)=1631./55296; b(6,2)=175./512; b(6,3)=575./13824; b(6,4)=44275./110592; b(6,5)=253./4096
-!!     b(7,*) are c(*)
-!      b(7,1)=37./378; b(7,2)=0; b(7,3)=250./621; b(7,4)=125./594; b(7,5)=0; b(7,6)=512./1771
-!!     dc() are c_i-c_i^*
-!      dc(1)=b(7,1)-2825./27648; dc(2)=0; dc(3)=b(7,3)-18575./48384
-!      dc(4)=b(7,4)-13525./55296; dc(5)=b(7,5)-277./14336; dc(6)=b(7,6)-0.25
 
       sclr=0 
       !Initial exit is false
@@ -878,7 +835,6 @@ end subroutine inter_btrack
           dtb=dtb*(1-1.e-3) !add safety
           if(dtb<=0) call parallel_abort('BTRACK: dtb<=0 (2b)')
           iadptive=iadptive+1
-          !write(12,*)'BTRACK:',iadptive,trm,dtb,dtbk
           cycle
         endif
 
@@ -998,13 +954,8 @@ end subroutine inter_btrack
               uvdata(i,1)=0
               uvdata(i,2)=0
             else !wet
-!              if(ics==1) then
               vxl(1,1)=uu2(jlev,nd); vxl(1,2)=uu2(jlev-1,nd)
               vxl(2,1)=vv2(jlev,nd); vxl(2,2)=vv2(jlev-1,nd)
-!              else
-!                call project_hvec(uu2(jlev,nd),vv2(jlev,nd),pframe(:,:,nd),eframe(:,:,nnel),vxl(1,1),vxl(2,1))
-!                call project_hvec(uu2(jlev-1,nd),vv2(jlev-1,nd),pframe(:,:,nd),eframe(:,:,nnel),vxl(1,2),vxl(2,2))
-!              endif !ics
               uvdata(i,1)=vxl(1,1)*(1-zrat)+vxl(1,2)*zrat
               uvdata(i,2)=vxl(2,1)*(1-zrat)+vxl(2,2)*zrat
               !For ibtrack_test only
@@ -1023,9 +974,6 @@ end subroutine inter_btrack
           if(ics==1) then
             xn2=xt; yn2=yt
           else
-!mpch            call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xn1,yn1,tmp)
-!            call project_pt('g2l',xn1,yn1,tmp,(/xctr(nnel),yctr(nnel),zctr(nnel)/), &
-!     &eframe(:,:,nnel),xn2,yn2,aa1)
           call local_to_global_pt_project( xt,yt,0.d0,gcor0,frame0,xn1,yn1,tmp )
           call global_to_local_pt_project( xn1,yn1,tmp,(/xctr(nnel),yctr(nnel),zctr(nnel)/), &
                                          & eframe(:,:,nnel),xn2,yn2,aa1)
@@ -1041,8 +989,6 @@ end subroutine inter_btrack
             if(ics==1) then
               rr=sqrt((xnd(nd)-xt)**2+(ynd(nd)-yt)**2)
             else
-!mpch              call project_pt('g2l',xnd(nd),ynd(nd),znd(nd),(/xctr(nnel),yctr(nnel),zctr(nnel)/), &
-!     &eframe(:,:,nnel),xn3,yn3,tmp)
               call global_to_local_pt_project(xnd(nd),ynd(nd),znd(nd),(/xctr(nnel),yctr(nnel),zctr(nnel)/), &
      &eframe(:,:,nnel),xn3,yn3,tmp)
               rr=sqrt((xn2-xn3)**2+(yn2-yn3)**2)
@@ -1054,12 +1000,6 @@ end subroutine inter_btrack
             if(ibtrack_test==1) sclr(1)=sclr(1)+al_beta(i,3)*covar2
           enddo !i
 
-!          !Proj vel. back to frame0
-!          if(ics==2) then
-!            call project_hvec(uuint,vvint,eframe(:,:,nnel),frame0,uuint1,vvint1)
-!            uuint=uuint1
-!            vvint=vvint1
-!          endif !ics
         endif !resident element
       endif !Kriging
 
@@ -1144,12 +1084,6 @@ end subroutine inter_btrack
                      &tt2,xt2,yt2,zt2,xtmp,ytmp,eps,dist,tmp,xctr3,yctr3,vtan, &
                      &xvel,yvel,zvel,hvel,etal,dep,hmod2,uj,vj,uj1,vj1,uu,vv,uf,vf
 
-!     Debug
-!      fdb='qs_0000'
-!      lfdb=len_trim(fdb)
-!      write(fdb(lfdb-3:lfdb),'(i4.4)') myrank
-!      open(98,file='outputs/'//fdb,status='unknown')
-
 !     Save for debug
       xt00=xt
       yt00=yt
@@ -1175,18 +1109,6 @@ end subroutine inter_btrack
       xcg=x0; ycg=y0
       pathl=sqrt((xt-xcg)**2+(yt-ycg)**2)
       if(pathl==0.or.trm==0) then
-!        write(12,*)'Last QUICKSEARCH: nodes'
-!        do i=1,npa
-!          do k=1,nvrt
-!            write(12,*)iplg(i),k,uu2(k,i),vv2(k,i)
-!          enddo !k
-!        enddo !i
-!        write(12,*)'Sides:'
-!        do i=1,nsa
-!          do k=1,nvrt
-!            write(12,*)islg(i),iplg(isidenode(1:2,i)),k,su2(k,i),sv2(k,i)
-!          enddo !k
-!        enddo !i
         write(errmsg,*)'QUICKSEARCH: Zero path',idx,itr,l_ns,ipsgb,ielg(nel),jlev, &
      &x0,y0,xt,yt,xcg,ycg,time,uuint0,vvint0,wwint0
         call parallel_abort(errmsg)
@@ -1211,10 +1133,6 @@ end subroutine inter_btrack
           xn1=xcg; yn1=ycg
           xn2=xt; yn2=yt
         else !ll
-!mpch          call project_pt('l2g',xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!          call project_pt('g2l',xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn1,yn1,zn1)
-!          call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!          call project_pt('g2l',xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn2,yn2,zn2)
           call local_to_global_pt_project(xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
           call global_to_local_pt_project(xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn1,yn1,zn1)
           call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
@@ -1245,8 +1163,6 @@ end subroutine inter_btrack
             xn1=xnd(jd1); yn1=ynd(jd1)
             xn2=xnd(jd2); yn2=ynd(jd2)
           else !lat/lon
-!mpch            call project_pt('g2l',xnd(jd1),ynd(jd1),znd(jd1),gcor0,frame0,xn1,yn1,zn1)
-!            call project_pt('g2l',xnd(jd2),ynd(jd2),znd(jd2),gcor0,frame0,xn2,yn2,zn2)
             call global_to_local_pt_project(xnd(jd1),ynd(jd1),znd(jd1),gcor0,frame0,xn1,yn1,zn1)
             call global_to_local_pt_project(xnd(jd2),ynd(jd2),znd(jd2),gcor0,frame0,xn2,yn2,zn2)
           endif !ics
@@ -1261,8 +1177,6 @@ end subroutine inter_btrack
               if(ics==1) then
                 xcg2=xcg; ycg2=ycg; zcg2=0; xt2=xt; yt2=yt; zt2=0
               else !lat/lon
-!mpch                call project_pt('l2g',xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!                call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
                 call local_to_global_pt_project(xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
                 call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
               endif !ics
@@ -1280,8 +1194,6 @@ end subroutine inter_btrack
           if(ics==1) then
             xcg2=xcg; ycg2=ycg; zcg2=0; xt2=xt; yt2=yt; zt2=0
           else !lat/lon
-!mpch            call project_pt('l2g',xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!            call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
             call local_to_global_pt_project(xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
             call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
           endif !ics
@@ -1371,13 +1283,9 @@ end subroutine inter_btrack
           if(ics==1) then
             xn2=xt; yn2=yt
           else !ll
-!mpch            call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!            call project_pt('g2l',xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn2,yn2,zn2)
             call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
             call global_to_local_pt_project(xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn2,yn2,zn2)
           endif !ics
-
-          !call quad_shape(1,4,nel,xt,yt,inside2,arco)
           call quad_shape(1,4,nel,xn2,yn2,inside2,arco)
         endif
         nnel=nel
@@ -1423,7 +1331,6 @@ end subroutine inter_btrack
         if(ics==1) then
           xctr3=xctr(nel); yctr3=yctr(nel)
         else !lat/lon
-!mpch          call project_pt('g2l',xctr(nel),yctr(nel),zctr(nel),gcor0,frame0,xctr3,yctr3,tmp)
           call global_to_local_pt_project(xctr(nel),yctr(nel),zctr(nel),gcor0,frame0,xctr3,yctr3,tmp)
         endif !ics
         xin=(1-eps)*xin+eps*xctr3 !xctr(nel)
@@ -1470,8 +1377,6 @@ end subroutine inter_btrack
         if(ics==1) then
           xn2=xt; yn2=yt
         else !ll
-!mpch          call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!          call project_pt('g2l',xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn2,yn2,zn2)
           call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
           call global_to_local_pt_project(xcg2,ycg2,zcg2,(/xctr(nel),yctr(nel),zctr(nel)/),eframe(:,:,nel),xn2,yn2,zn2)
         endif !ics
@@ -1499,8 +1404,6 @@ end subroutine inter_btrack
           xn1=xnd(jd1); yn1=ynd(jd1)
           xn2=xnd(jd2); yn2=ynd(jd2)
         else !lat/lon
-!mpch          call project_pt('g2l',xnd(jd1),ynd(jd1),znd(jd1),gcor0,frame0,xn1,yn1,tmp)
-!          call project_pt('g2l',xnd(jd2),ynd(jd2),znd(jd2),gcor0,frame0,xn2,yn2,tmp)
           call global_to_local_pt_project(xnd(jd1),ynd(jd1),znd(jd1),gcor0,frame0,xn1,yn1,tmp)
           call global_to_local_pt_project(xnd(jd2),ynd(jd2),znd(jd2),gcor0,frame0,xn2,yn2,tmp)
         endif !ics
@@ -1514,8 +1417,6 @@ end subroutine inter_btrack
             if(ics==1) then
               xcg2=xcg; ycg2=ycg; zcg2=0; xt2=xt; yt2=yt; zt2=0
             else !lat/lon
-!mpch              call project_pt('l2g',xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!              call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
               call local_to_global_pt_project(xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
               call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
             endif !ics      
@@ -1536,8 +1437,6 @@ end subroutine inter_btrack
         else !lat/lon
           call local_to_global_pt_project(xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
           call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
-!mpch          call project_pt('l2g',xcg,ycg,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!          call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xt2,yt2,zt2)
         endif !ics   
         write(errmsg,*)'QUICKSEARCH: no intersecting edge (2): ',idx,itr,l_ns,ipsgb,ielg(nel), &
      &xcg2,ycg2,zcg2,xt2,yt2,zt2,wild2(1:i34(nel),1:2),xcg,ycg,xt,yt,time,trm,uuint0,vvint0,wwint0,lit
@@ -1562,8 +1461,6 @@ end subroutine inter_btrack
         if(ics==1) then
           xn2=xt; yn2=yt
         else !ll
-!mpch          call project_pt('l2g',xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
-!          call project_pt('g2l',xcg2,ycg2,zcg2,(/xctr(nnel),yctr(nnel),zctr(nnel)/),eframe(:,:,nnel),xn2,yn2,zn2)
           call local_to_global_pt_project(xt,yt,0.d0,gcor0,frame0,xcg2,ycg2,zcg2)
           call global_to_local_pt_project(xcg2,ycg2,zcg2,(/xctr(nnel),yctr(nnel),zctr(nnel)/),eframe(:,:,nnel),xn2,yn2,zn2)
         endif !ics
@@ -1704,7 +1601,6 @@ end subroutine inter_btrack
       if(delta/=0) then
         tt1=delta1/delta
         tt2=delta2/delta
-        !if(tt1>=-small.and.tt1<=1+small.and.tt2>=-small.and.tt2<=1+small) then
         if(tt2>=-small.and.tt2<=1+small) then
           iflag=1
           xin=x3+(x4-x3)*tt2

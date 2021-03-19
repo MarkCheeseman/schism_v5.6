@@ -3603,8 +3603,6 @@
               xstal=xsta(l)
               ystal=ysta(l)
             else !to eframe
-!mpch              call project_pt('g2l',xsta(l),ysta(l),zsta(l), &
-!     &(/xctr(i),yctr(i),zctr(i)/),eframe(:,:,i),xstal,ystal,tmp)
               call global_to_local_pt_project(xsta(l),ysta(l),zsta(l), &
      &(/xctr(i),yctr(i),zctr(i)/),eframe(:,:,i),xstal,ystal,tmp)
             endif
@@ -3857,8 +3855,6 @@
         do i=1,npp
           n1=itier_nd(i,ie)
           if(ics==2) then
-!mpch            call project_pt('g2l',xnd(n1),ynd(n1),znd(n1), &
-!     &(/xctr(k),yctr(k),zctr(k)/),eframe(:,:,k),xy_kr(1,i),xy_kr(2,i),tmp)
             call global_to_local_pt_project(xnd(n1),ynd(n1),znd(n1), &
      &(/xctr(k),yctr(k),zctr(k)/),eframe(:,:,k),xy_kr(1,i),xy_kr(2,i),tmp)
           endif !ics
@@ -3868,8 +3864,6 @@
             if(ics==1) then
               rr=sqrt((xnd(n1)-xnd(n2))**2+(ynd(n1)-ynd(n2))**2+(znd(n1)-znd(n2))**2)
             else
-!mpch              call project_pt('g2l',xnd(n2),ynd(n2),znd(n2), &
-!     &(/xctr(k),yctr(k),zctr(k)/),eframe(:,:,k),xn2,yn2,tmp)
               call global_to_local_pt_project(xnd(n2),ynd(n2),znd(n2), &
      &(/xctr(k),yctr(k),zctr(k)/),eframe(:,:,k),xn2,yn2,tmp)
               rr=sqrt((xy_kr(1,i)-xn2)**2+(xy_kr(2,i)-yn2)**2)

@@ -1010,13 +1010,6 @@ subroutine msgp_tables
   call mpi_allreduce( MPI_IN_PLACE, itmp_array, 2, itype, MPI_SUM, comm, ierr )
   if( itmp_array(1)/=itmp_array(2) ) call parallel_abort('Mismatch in # of recv and send')
 
-!mpch  itmp=0
-!  do i=1,nnbr_p; itmp=itmp+npsend(i); enddo
-!  call mpi_allreduce(itmp,k,1,itype,MPI_SUM,comm,ierr)
-!  itmp=0
-!  do i=1,nnbr_p; itmp=itmp+nprecv(i); enddo
-!  call mpi_allreduce(itmp,l,1,itype,MPI_SUM,comm,ierr)
-!  if(k/=l) call parallel_abort('Mismatch in # of recv and send')
 #endif
 
   ! Done with global indexed arrays -- deallocate
@@ -1084,22 +1077,6 @@ subroutine msgp_tables
     endif
   enddo
 
-  !debug>
-  !ftest='exch_xxxx'
-  !lftest=len_trim(ftest)
-  !write(ftest(lftest-3:lftest),'(i4.4)') myrank
-  !open(92,file='./'//ftest,status='replace')
-
-  !write(92,*) 'myrank,nnbr_s3,nbrrank_s3,ranknbr_s3: '
-  !write(92,'(2(i8,x))') myrank,nnbr_s3
-  !write(92,'(40(i8,x))') nbrrank_s3
-  !write(92,'(40(i8,x))') ranknbr_s3 
-  !flush(92)
-  !close(92)
-  !pause
-  !read(*,*)
-  !<debug
-
   ! Finished with nbr_s3
   deallocate(nbr_s3)
 
@@ -1152,29 +1129,6 @@ subroutine msgp_tables
     endif !interface
   enddo !isd
 
-  !debug>
-  !ftest='exch_xxxx'
-  !lftest=len_trim(ftest)
-  !write(ftest(lftest-3:lftest),'(i4.4)') myrank
-  !open(92,file='./'//ftest,status='replace')
-
-  !write(92,'(a)') 'Side Receive Table:'
-  !do i=1,nnbr_s3
-  !  write(92,'(a,6i8)') 'myrank,i,nnbr_s3,nbrindx,rank,nsrecv3: ', myrank,i,nnbr_s3,&
-  !  &ranknbr_s3(nbrrank_s3(i)),nbrrank_s3(i),nsrecv3(i)
-  !  if(nsrecv3(i)==0) then
-  !    write(92,*)'Zero recv side'
-  !    write(errmsg,*) 'MSGP: Zero recv side; see ctb*'
-  !    call parallel_abort(errmsg)
-  !  endif
-  !  do j=1,nsrecv3(i)
-  !    write(92,'(t1,4i8)') isrecv3(j,i),isgrecv3(j,i),iplg(isidenode(1:2,isrecv3(j,i)))
-  !  enddo
-
-  !enddo
-  !write(92,'(a)') '##########################################################'
-  !flush(92)
-
   ! Allocate side send count array
   allocate(nssend3(nnbr_s3),stat=stat)
   if(stat/=0) call parallel_abort('msgp_tables: nssend3 allocation failure')
@@ -1205,20 +1159,12 @@ subroutine msgp_tables
 
   ! Communicate side send lists (global node index pairs) with nbrs
   do i=1,nnbr_s3
-!    if(nssend3(i)/=0) then
     call mpi_irecv(isgsend3(1,i),nssend3(i),itype,nbrrank_s3(i),43,comm,rrqst(i),ierr)
     if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_tables: mpi_irecv3 tag=43',ierr)
-!    else
-!      rrqst(i)=MPI_REQUEST_NULL
-!    endif
   enddo
   do i=1,nnbr_s3
-!    if(nsrecv3(i)/=0) then
     call mpi_isend(isgrecv3(1,i),nsrecv3(i),itype,nbrrank_s3(i),43,comm,srqst(i),ierr)
     if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_tables: mpi_isend3 tag=43',ierr)
-!    else
-!      srqst(i)=MPI_REQUEST_NULL
-!    endif
   enddo
   call mpi_waitall(nnbr_s3,rrqst,rstat,ierr)
   if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_tables: mpi_waitall rrqst tag=43',ierr)
@@ -1237,28 +1183,6 @@ subroutine msgp_tables
       if(issend3(j,i)>ns) call parallel_abort('msgp_tables:weno send side is ghost')
     enddo
   enddo
-
-!debug>
-  !do i=1,nnbr_s3
-  !  write(92,'(a,4i8)') 'nbrindx,rank,nssend3: ', myrank,&
-  !  &ranknbr_s3(nbrrank_s3(i)),nbrrank_s3(i),nssend3(i)
-  !  if(nssend3(i)==0) then
-  !    write(92,*)'Zero send side'
-! !     write(errmsg,*) 'MSGP: Zero send side; see ctb*'
-! !     call parallel_abort(errmsg)
-  !  endif
-  !  do j=1,nssend3(i)
-  !    write(92,'(t1,4i8)') issend3(j,i),isgsend3(j,i),iplg(isidenode(1:2,issend3(j,i)))
-  !  enddo
-  !enddo
-  !write(92,'(a)') '##########################################################'
-  !flush(92)
-  !close(92)
-  !pause
-  !read(*,*)
-  !<debug
-
-!  call parallel_barrier
 
   deallocate(isgsend3)
   deallocate(isgrecv3)
@@ -1374,8 +1298,6 @@ subroutine msgp_tables
     &ranknbr_p(nbrrank_p(i)),nbrrank_p(i),nsrecv(i)
     if(nsrecv(i)==0) then
       write(10,*)'Zero recv side'
-!      write(errmsg,*) 'MSGP: Zero recv side; see ctb*'
-!      call parallel_abort(errmsg)
     endif
     do j=1,nsrecv(i)
       write(10,'(t1,4i8)') isrecv(j,i),isgrecv(j,i),iplg(isidenode(1:2,isrecv(j,i)))
@@ -1384,8 +1306,6 @@ subroutine msgp_tables
   write(10,'(a)') '##########################################################'
   flush(10)
   call parallel_barrier
-  !pause
-  !read(*,*)
 #endif
 
   ! Allocate side send count array
@@ -1461,8 +1381,6 @@ subroutine msgp_tables
     &ranknbr_p(nbrrank_p(i)),nbrrank_p(i),nssend(i)
     if(nssend(i)==0) then
       write(10,*)'Zero send side'
-!      write(errmsg,*) 'MSGP: Zero send side; see ctb*'
-!      call parallel_abort(errmsg)
     endif
     do j=1,nssend(i)
       write(10,'(t1,4i8)') issend(j,i),isgsend(j,i),iplg(isidenode(1:2,issend(j,i)))
@@ -1600,11 +1518,6 @@ subroutine msgp_tables
   ! Allocate element send count array
   allocate(nesend_2t(nnbr_2t),stat=stat)
   if(stat/=0) call parallel_abort('msgp_tables: nesend_2t allocation failure')
-
-  ! Communicate ghost element counts with nbrs
-! nerecv_2t(i): # of ghost elements to be received from neighbor i to myrank
-! nesend_2t(i): # of ghost elements to be sent to neighbor i (from myrank)
-! Communication involves all neighbors (and synchronized)
 
   do i=1,nnbr_2t
     call mpi_irecv(nesend_2t(i),1,itype,nbrrank_2t(i),15,comm,rrqst(i),ierr)
@@ -2791,51 +2704,6 @@ endif !ntracers>0
 #endif /*USE_WWM*/
 
   !-----------------------------------------------------------------------------
-  ! Setup 3D tracer transport element Message-Passing (the order of indices must be (mntr,nvrt,nm), where nm>=nea).
-  !-----------------------------------------------------------------------------
-
-  ! 3D-whole-level element comm request and status handles
-!  allocate(e3d_tr_send_rqst(nnbr),stat=stat)
-!  if(stat/=0) call parallel_abort('msgp_init: e3d_tr_send_rqst allocation failure')
-!  allocate(e3d_tr_send_stat(MPI_STATUS_SIZE,nnbr),stat=stat)
-!  if(stat/=0) call parallel_abort('msgp_init: e3d_tr_send_stat allocation failure')
-!  allocate(e3d_tr_recv_rqst(nnbr),stat=stat)
-!  if(stat/=0) call parallel_abort('msgp_init: e3d_tr_recv_rqst allocation failure')
-!  allocate(e3d_tr_recv_stat(MPI_STATUS_SIZE,nnbr),stat=stat)
-!  if(stat/=0) call parallel_abort('msgp_init: e3d_tr_recv_stat allocation failure')
-!
-!  ! 3D-whole-level element comm user-defined datatypes
-!  allocate(e3d_tr_send_type(nnbr),stat=stat)
-!  if(stat/=0) call parallel_abort('msgp_init: e3d_tr_send_type allocation failure')
-!  allocate(e3d_tr_recv_type(nnbr),stat=stat)
-!  if(stat/=0) call parallel_abort('msgp_init: e3d_tr_recv_type allocation failure')
-!
-!  do i=1,nnbr
-!    !Send
-!    blen_send(:)=nvrt*mntr
-!    dspl_send(1:mnesend)=(iesend(:,i)-1)*nvrt*mntr
-!#if MPIVERSION==1
-!    call mpi_type_indexed(nesend(i),blen_send,dspl_send,rtype,e3d_tr_send_type(i),ierr)
-!#elif MPIVERSION==2
-!    call mpi_type_create_indexed_block(nesend(i),nvrt*mntr,dspl_send,rtype,e3d_tr_send_type(i),ierr)
-!#endif
-!    if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_init: create e3d_tr_send_type',ierr)
-!    call mpi_type_commit(e3d_tr_send_type(i),ierr)
-!    if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_init: commit e3d_tr_send_type',ierr)
-!    !Recv
-!    blen_recv(:)=nvrt*mntr
-!    dspl_recv(1:mnerecv)=(ierecv(:,i)-1)*nvrt*mntr
-!#if MPIVERSION==1
-!    call mpi_type_indexed(nerecv(i),blen_recv,dspl_recv,rtype,e3d_tr_recv_type(i),ierr)
-!#elif MPIVERSION==2
-!    call mpi_type_create_indexed_block(nerecv(i),nvrt*mntr,dspl_recv,rtype,e3d_tr_recv_type(i),ierr)
-!#endif
-!    if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_init: create e3d_tr_recv_type',ierr)
-!    call mpi_type_commit(e3d_tr_recv_type(i),ierr)
-!    if(ierr/=MPI_SUCCESS) call parallel_abort('msgp_init: commit e3d_tr_recv_type',ierr)
-!  enddo !i=1,nnbr
-
-  !-----------------------------------------------------------------------------
   ! Setup 3D tracer transport element Message-Passing (the order of indices must be (ntracers,nvrt,nm), where nm>=nea).
   !-----------------------------------------------------------------------------
 
@@ -3630,31 +3498,14 @@ subroutine exchange_s3d_tr3(s3d_tr3_tmp0,s3d_tr3_tmp)
 
   ! Post receives
   do i=1,nnbr_s3
-!    if(nsrecv3(i)/=0) then
-    !nsrecv3(i)/=0 checked
     call mpi_irecv(s3d_tr3_tmp0,1,s3d_tr3_recv_type(i),nbrrank_s3(i),44,comm,s3d_tr3_recv_rqst(i),ierr)
     if(ierr/=MPI_SUCCESS) call parallel_abort('exchange_s3d_tr3: irecv tag=44',ierr)
-!#ifdef DEBUG
-!    else
-!      s3d_tr3_recv_rqst(i)=MPI_REQUEST_NULL
-!      write(errmsg,*) 'MPI_REQUEST_NULL: ', myrank
-!      call parallel_abort(errmsg,ierr)
-!#endif
-!    endif
   enddo
 
   ! Post sends
   do i=1,nnbr_s3
-!    if(nssend3(i)/=0) then
     call mpi_isend(s3d_tr3_tmp,1,s3d_tr3_send_type(i),nbrrank_s3(i),44,comm,s3d_tr3_send_rqst(i),ierr)
     if(ierr/=MPI_SUCCESS) call parallel_abort('exchange_s3d_tr3: isend tag=44',ierr)
-!#ifdef DEBUG
-!    else
-!      s3d_tr3_recv_rqst(i)=MPI_REQUEST_NULL
-!      write(errmsg,*) 'MPI_REQUEST_NULL: ', myrank
-!      call parallel_abort(errmsg,ierr)
-!#endif
-!    endif
   enddo
 
   ! Wait for completion
@@ -3912,39 +3763,6 @@ subroutine exchange_p3d_wwm(p3d_wwm_data)
 end subroutine exchange_p3d_wwm
 
 #endif /*USE_WWM*/
-
-!subroutine exchange_e3d_tr(e3d_tr_data)
-!!-------------------------------------------------------------------------------
-!! 3D tracer transport Ghost Element Exchange
-!! The dimension of e3d_tr_data must be (mntr,nvrt,nm) where nm>=nea
-!!-------------------------------------------------------------------------------
-!  implicit none
-!  real(rkind),intent(inout) :: e3d_tr_data(:,:,:)
-!  integer :: i
-!!-------------------------------------------------------------------------------
-!
-!  ! Handle single processor case
-!  if(nproc==1) return
-!
-!  ! Post receives
-!  do i=1,nnbr
-!    call mpi_irecv(e3d_tr_data,1,e3d_tr_recv_type(i),nbrrank(i),12,comm,e3d_tr_recv_rqst(i),ierr)
-!    if(ierr/=MPI_SUCCESS) call parallel_abort('exchange_e3d_tr: irecv tag=12',ierr)
-!  enddo
-!
-!  ! Post sends
-!  do i=1,nnbr
-!    call mpi_isend(e3d_tr_data,1,e3d_tr_send_type(i),nbrrank(i),12,comm,e3d_tr_send_rqst(i),ierr)
-!    if(ierr/=MPI_SUCCESS) call parallel_abort('exchange_e3d_tr: isend tag=12',ierr)
-!  enddo
-!
-!  ! Wait for completion
-!  call mpi_waitall(nnbr,e3d_tr_recv_rqst,e3d_tr_recv_stat,ierr)
-!  if(ierr/=MPI_SUCCESS) call parallel_abort('exchange_e3d_tr: waitall recv',ierr)
-!  call mpi_waitall(nnbr,e3d_tr_send_rqst,e3d_tr_send_stat,ierr)
-!  if(ierr/=MPI_SUCCESS) call parallel_abort('exchange_e3d_tr: waitall send',ierr)
-!
-!end subroutine exchange_e3d_tr
 
 subroutine exchange_e3d_tr2(e3d_tr2_data)
 !-------------------------------------------------------------------------------

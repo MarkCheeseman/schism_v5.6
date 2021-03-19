@@ -71,18 +71,12 @@
 !     Calculate z-coord. at a _wet_ node
 !     Search for 'ivcor' for other changes
 !-------------------------------------------------------------------------------
-!#ifdef USE_MPIMODULE
-!      use mpi
-!#endif
       use schism_glbl, only: rkind,errmsg,ivcor,eta2,dp,kbp,nvrt,kz,h0,h_s, &
      &h_c,theta_b,theta_f,s_con1,sigma,ztot,cs,sigma_lcl,iplg
       use schism_msgp, only: parallel_abort
       implicit none
-!#ifndef USE_MPIMODULE
       include 'mpif.h'
-!#endif
       integer, intent(in) :: itag,inode !tag to indicate where this routine is called from
-!      real(rkind), intent(in) :: dep,etal
       integer, intent(out) :: kbpl
       real(rkind), intent(out) :: ztmp(nvrt)
 
@@ -140,10 +134,6 @@
         endif !dep<=h_s
 
       else if(ivcor==1) then !localized simga
-!        if(eta<=-hsm(m_pws)) then
-!          write(errmsg,*)'ZCOOR: elev<hsm:',eta,itag
-!          call parallel_abort(errmsg)
-!        endif
 
         kbpl=kbp(inode)
         do k=kbpl+1,nvrt-1
@@ -1245,14 +1235,11 @@
 
 !     Check wet/dry in ghost zone
       xchng(:) = .false.
-!mpch      prwt_xchng(1)=.false. !node
-!      srwt_xchng(1)=.false. !side
 
       if(it/=iths) then
         do i=np+1,npa !check ghosts wet/dry
           if(idry(i)==1.and.idry2(i)==0) then
             xchng(1)=.true. !ghost rewetted; need exchange
-!mpch            prwt_xchng(1)=.true. !ghost rewetted; need exchange
             exit
           endif
         enddo !i
@@ -1260,7 +1247,6 @@
         do i=ns+1,nsa !ghost
           if(idry_s(i)==1.and.idry_s2(i)==0) then
             xchng(2)=.true.
-!mpch            srwt_xchng(1)=.true.
             exit
           endif
  
@@ -1276,21 +1262,12 @@
         if (ierr/=MPI_SUCCESS) then
            call parallel_abort('levels0: allreduce xchng_gb',ierr)
         endif
-!mpch        call mpi_allreduce(prwt_xchng,prwt_xchng_gb,1,MPI_LOGICAL,MPI_LOR,comm,ierr)
-!        if (ierr/=MPI_SUCCESS) then
-!           call parallel_abort('levels0: allreduce prwt_xchng_gb',ierr)
-!        endif
-!        call mpi_allreduce(srwt_xchng,srwt_xchng_gb,1,MPI_LOGICAL,MPI_LOR,comm,ierr)
-!        if (ierr/=MPI_SUCCESS) then
-!           call parallel_abort('levels0: allreduce srwt_xchng_gb',ierr)
-!        endif
 
 #ifdef INCLUDE_TIMING
         if(cwtime) wtimer(10,2)=wtimer(10,2)+mpi_wtime()-cwtmp
 #endif
 
 !       Allocate temporary array
-!mpch        if(prwt_xchng_gb(1).or.srwt_xchng_gb(1)) then
         if(xchng_gb(1).or.xchng_gb(2)) then
           allocate(swild(4,nvrt,nsa),stat=istat)
           if(istat/=0) call parallel_abort('Levels0: fail to allocate swild')
@@ -1298,7 +1275,6 @@
         endif
 
 !       update ghost nodes
-!mpch        if(prwt_xchng_gb(1)) then
         if(xchng_gb(1)) then
           swild(1,:,1:npa)=uu2(:,:)
           swild(2,:,1:npa)=vv2(:,:)
@@ -1318,7 +1294,6 @@
         endif
 
 !       update ghost sides
-!mpch        if(srwt_xchng_gb(1)) then
         if(xchng_gb(2)) then
           swild(1,:,:)=su2(:,:)
           swild(2,:,:)=sv2(:,:)
@@ -1335,7 +1310,6 @@
           sv2(:,:)=swild(2,:,:)
         endif
 
-!mpch        if(prwt_xchng_gb(1).or.srwt_xchng_gb(1)) deallocate(swild)
         if(xchng_gb(1).or.xchng_gb(1)) deallocate(swild)
       endif !nproc>1
 
@@ -1353,17 +1327,10 @@
 !-------------------------------------------------------------------------------
 ! Convert side vel. to node vel. at WHOLE levels.
 !-------------------------------------------------------------------------------
-!#ifdef USE_MPIMODULE
-!      use mpi
-!#endif
       use schism_glbl
       use schism_msgp
       implicit none
-!#ifndef USE_MPIMODULE
       include 'mpif.h'
-!#endif
-
-!      integer, intent(in) :: ifltype(max(1,nope_global))
 
 !     Local
       integer :: i,j,k,l,m,icount,ie,id,isd,isd2,isd3,nfac,nfac0,istat
@@ -1395,17 +1362,8 @@
           !Save side vel.
           do j=1,i34(i) !side index
             isd=elside(j,i)
-!            if(ics==1) then
             swild5(j,1)=su2(k,isd)
             swild5(j,2)=sv2(k,isd)
-!            else !lat/lon
-!              !Element frame
-!              swild5(j,1)=su2(k,isd)*dot_product(sframe(:,1,isd),eframe(:,1,i))+ &
-!                         &sv2(k,isd)*dot_product(sframe(:,2,isd),eframe(:,1,i))
-!              !v
-!              swild5(j,2)=su2(k,isd)*dot_product(sframe(:,1,isd),eframe(:,2,i))+ &
-!                         &sv2(k,isd)*dot_product(sframe(:,2,isd),eframe(:,2,i))
-!            endif !ics
           enddo !j
   
           if(i34(i)==3) then !Triangles
@@ -1462,33 +1420,9 @@
             if(idry_e(ie)==0) then
               icount=icount+1
 
-!              if(ics==1) then
               uu2(k,i)=uu2(k,i)+ufg(id,k,ie)
               vv2(k,i)=vv2(k,i)+vfg(id,k,ie)
-!              else !lat/lon
-!                !To node frame
-!                uu2(k,i)=uu2(k,i)+ufg(id,k,ie)*dot_product(eframe(:,1,ie),pframe(:,1,i))+ &
-!                                 &vfg(id,k,ie)*dot_product(eframe(:,2,ie),pframe(:,1,i)) 
-!                vv2(k,i)=vv2(k,i)+ufg(id,k,ie)*dot_product(eframe(:,1,ie),pframe(:,2,i))+ &
-!                                 &vfg(id,k,ie)*dot_product(eframe(:,2,ie),pframe(:,2,i)) 
-!              endif !ics
             endif !idry_e
-
-            !Vertical direction same between element and node frames
-!            if(interpol(ie)==1) then !along Z
-!              if(idry_e(ie)==1) then
-!                swild(1)=0
-!              else !wet element; node i is also wet
-!                kbb=kbe(ie)
-!                swild3(kbb:nvrt)=ze(kbb:nvrt,ie) 
-!                swild2(kbb:nvrt,1)=we(kbb:nvrt,ie)
-!                call vinter
-!              endif
-!            else !along S
-!            swild(1)=we(k,ie)
-!            endif !Z or S
-
-!            ww2(k,i)=ww2(k,i)+swild(1)*area(ie)
             ww2(k,i)=ww2(k,i)+we(k,ie)*area(ie)
             weit_w=weit_w+area(ie)
           enddo !j
@@ -1522,13 +1456,6 @@
       do i=1,np !resident only
         if(idry(i)==1) cycle
 
-!       Wet node
-!        icase=2
-!        do j=1,nne(i)
-!          ie=indel(j,i)
-!          if(interpol(ie)==1) icase=1
-!        enddo !j
-
         do k=kbp(i),nvrt
           weit=0
           weit_w=0
@@ -1560,54 +1487,11 @@
                   nfac=nfac0
                 endif
               endif
-
-!              if(icase==1) then !along Z
-!                if(idry_s(isd)==1) then
-!                  swild(1:2)=0
-!                else !wet side; node i is also wet
-!                  kbb=kbs(isd)
-!                  if(ics==1) then
-!                    swild2(kbb:nvrt,1)=su2(kbb:nvrt,isd)
-!                    swild2(kbb:nvrt,2)=sv2(kbb:nvrt,isd)
-!                  else !lat/lon
-!                    swild2(kbb:nvrt,1)=su2(kbb:nvrt,isd)*dot_product(sframe(:,1,isd),pframe(:,1,i))+&
-!                                      &sv2(kbb:nvrt,isd)*dot_product(sframe(:,2,isd),pframe(:,1,i))
-!                    swild2(kbb:nvrt,2)=su2(kbb:nvrt,isd)*dot_product(sframe(:,1,isd),pframe(:,2,i))+&
-!                                      &sv2(kbb:nvrt,isd)*dot_product(sframe(:,2,isd),pframe(:,2,i))
-!                  endif !ics
-!                  swild3(kbb:nvrt)=zs(kbb:nvrt,isd)
-!                  call vinter
-!                endif
-!              else !along S
-!              if(ics==1) then
-!              swild(1)=su2(k,isd)
-!              swild(2)=sv2(k,isd)
-!              else !lat/lon
-!                swild(1)=su2(k,isd)*dot_product(sframe(:,1,isd),pframe(:,1,i))+&
-!                        &sv2(k,isd)*dot_product(sframe(:,2,isd),pframe(:,1,i))
-!                swild(2)=su2(k,isd)*dot_product(sframe(:,1,isd),pframe(:,2,i))+&
-!                        &sv2(k,isd)*dot_product(sframe(:,2,isd),pframe(:,2,i))
-!              endif !ics
-!              endif !Z or S
-
               uu2(k,i)=uu2(k,i)+su2(k,isd)/distj(isd)*nfac
               vv2(k,i)=vv2(k,i)+sv2(k,isd)/distj(isd)*nfac
               weit=weit+1/distj(isd)*nfac
             enddo !l
 
-            !Vertical axes same between frames
-!            if(interpol(ie)==1) then !along Z
-!              if(idry_e(ie)==1) then
-!                swild(1)=0
-!              else !wet element; node i is also wet
-!                kbb=kbe(ie)
-!                swild3(kbb:nvrt)=ze(kbb:nvrt,ie) 
-!                swild2(kbb:nvrt,1)=we(kbb:nvrt,ie)
-!                call vinter
-!              endif
-!            else !along S
-            !swild(1)=we(k,ie)
-!            endif !Z or S
             ww2(k,i)=ww2(k,i)+we(k,ie)*area(ie)
             weit_w=weit_w+area(ie)
           enddo !j=1,nne(i)
@@ -1652,26 +1536,6 @@
       vv2(:,:)=swild4(2,:,:)
       ww2(:,:)=swild4(3,:,:)
       deallocate(swild4)
-
-!...  Compute discrepancy between avergaed and elemental vel. vectors 
-!      do i=1,np
-!	do k=1,nvrt
-!	  testa(i,k)=0
-!          do j=1,nne(i)
-!	    iel=indel(j,i)
-!	    index=0
-!	    do l=1,3
-!	      if(elnode(l,iel).eq.i) index=l
-!	    enddo !l
-!	    if(index.eq.0) then
-!	      write(*,*)'Wrong element ball'
-!	      stop
-!	    endif
-!	    testa(i,k)=testa(i,k)+sqrt((uuf(iel,index,k)-uu2(k,i))**2+
-!     +(vvf(iel,index,k)-vv2(k,i))**2)/nne(i)
-!	  enddo !j
-!	enddo !k
-!      enddo !i
 
       end subroutine nodalvel
 
@@ -1792,10 +1656,6 @@
       integer, intent(in) :: ntr_sed !for dim. SED3D arrays
       real(rkind), intent(in) :: sconc(ntr_sed),Srho(ntr_sed)
 #endif /*USE_SED*/
-#ifdef USE_TIMOR
-!      real(rkind), intent(in) :: sconc(ntracers),Srho(ntracers)
-!      logical, intent(in) :: laddmud_d
-#endif
 
       !Local 
       integer :: ised
@@ -1808,10 +1668,7 @@
         call parallel_abort(errmsg)
       endif
       if(tem<tempmin.or.tem>tempmax.or.sal<saltmin.or.sal>saltmax) then
-!        if(ifort12(6)==0) then
-!          ifort12(6)=1
         write(12,*)'Invalid temp. or salinity for density:',tem,sal,indx,igb
-!        endif
         tem=max(tempmin,min(tem,tempmax))
         sal=max(saltmin,min(sal,saltmax))
       endif
@@ -1858,33 +1715,18 @@
 #ifdef USE_SED
 !...      Add sediment density effects
           if(ddensed==1) then
-!            if (myrank==0) write(16,*)'sediment density effect'
             SedDen=0.d0
             do ised=1,ntr_sed !ntracers
-!              write(12,*)'B4 sed. adjustment:',ised,Srho(ised),sconc(ised),eqstate
               if(eqstate>Srho(ised)) then
                 write(errmsg,*)'MISC, Weird SED density:',eqstate,tem,sal,indx,igb,ised,Srho(ised),sconc(ised)
                 call parallel_abort(errmsg)
               endif
               SedDen=SedDen+max(0.d0,sconc(ised))*(1-eqstate/Srho(ised))
-!             write(12,*)'after sed. adjustment:',SedDen,eqstate
             enddo
             eqstate=eqstate+SedDen
           endif !ddensed==1
 #endif /*USE_SED*/
 
-#ifdef USE_TIMOR
-!          if(laddmud_d) then
-!            rho_w=eqstate
-!            do ised=1,ntracers
-!              if(rho_w>Srho(ised)) then
-!                write(errmsg,*)'EQSTATE: Impossible (8):',indx,ised,rho_w,Srho(ised),sconc(ised)
-!                call parallel_abort(errmsg)            
-!              endif
-!              eqstate=eqstate+sconc(ised)*(1-rho_w/Srho(ised))
-!            enddo !ised
-!          endif !laddmud_d
-#endif /*USE_TIMOR*/
         case(1) !linear function of T only
           eqstate=eos_b+eos_a*tem
         case default
@@ -1920,11 +1762,7 @@
         drho_dz=(prho(j+1,i)-prho(j-1,i))/(znl(j+1,i)-znl(j-1,i))
       endif
 !Tsinghua group-------------------------
-      !if(Two_phase_mix==1) then
       bvf=grav/prho(j,i)*drho_dz
-      !else
-      !  bvf=grav/rho0*drho_dz
-      !endif    
 !Tsinghua group-------------------------
       Gh=xl(j,i)**2/2/q2(j,i)*bvf
       Gh=min(max(Gh,-0.28_rkind),0.0233_rkind)
@@ -2121,10 +1959,6 @@
       do j=1,i34(ie)
         if(node==elnode(j,ie)) lindex=j
       enddo
-!     if(lindex.eq.0) then
-!       write(errmsg,*)'LINDEX: ',node,' is not in element ',ie
-!       call parallel_abort(errmsg)
-!     endif
 
       end function lindex
 
@@ -2223,8 +2057,6 @@
       real(rkind) :: xtmp,aa,bb,cc,dd
 
       if(xmin>xmax) then
-!        write(errmsg,*)'EVAL_CUBIC: xmin>xmax:',xmin,xmax
-!        call parallel_abort(errmsg)
         yyout=yy(1); return
       endif
 
@@ -2498,10 +2330,6 @@
           yn2=ynd(node2)
         else
           !to eframe
-!mpch          call project_pt('g2l',xnd(node1),ynd(node1),znd(node1), &
-!     &(/xctr(ie),yctr(ie),zctr(ie)/),eframe(:,:,ie),xn1,yn1,tmp)
-!          call project_pt('g2l',xnd(node2),ynd(node2),znd(node2), &
-!     &(/xctr(ie),yctr(ie),zctr(ie)/),eframe(:,:,ie),xn2,yn2,tmp)
           call global_to_local_pt_project(xnd(node1),ynd(node1),znd(node1), &
      &(/xctr(ie),yctr(ie),zctr(ie)/),eframe(:,:,ie),xn1,yn1,tmp)
           call global_to_local_pt_project(xnd(node2),ynd(node2),znd(node2), &
@@ -2579,10 +2407,6 @@
             yn4=ynd(node4)
           else
             !to eframe
-!mpch            call project_pt('g2l',xnd(node3),ynd(node3),znd(node3), &
-!     &(/xctr(ie),yctr(ie),zctr(ie)/),eframe(:,:,ie),xn3,yn3,tmp)
-!            call project_pt('g2l',xnd(node4),ynd(node4),znd(node4), &
-!     &(/xctr(ie),yctr(ie),zctr(ie)/),eframe(:,:,ie),xn4,yn4,tmp)
             call global_to_local_pt_project(xnd(node3),ynd(node3),znd(node3), &
      &(/xctr(ie),yctr(ie),zctr(ie)/),eframe(:,:,ie),xn3,yn3,tmp)
             call global_to_local_pt_project(xnd(node4),ynd(node4),znd(node4), &
@@ -2829,8 +2653,6 @@
 
       alpha_zonal=0 !0.05 !rotation angle w.r.t. polar axis in radian
       omega_zonal=2*pi/12/86400 !angular freq. of solid body rotation
-!      gh0=2.94e4 !g*h0
-!      u00_zonal=omega_zonal*rearth_pole !zonal vel. at 'rotated' equator
       gh0=grav*5960 !case #5
       u00_zonal=20 !case #5
 
@@ -2870,13 +2692,9 @@
           nd=elnode(j,i)
           !Full zonal flow
           uzonal=u00_zonal*(cos(ylat(nd))*cos(alpha_zonal)+cos(xlon(nd))*sin(ylat(nd))*sin(alpha_zonal)) !zonal vel.
-          !Compact zonal flow
-!          uzonal=u_compactzonal(ylat(nd),u00_zonal)
 
           vmer=-u00_zonal*sin(xlon(nd))*sin(alpha_zonal) !meridional vel.
           call project_hvec(uzonal,vmer,pframe(:,:,nd),eframe(:,:,i),utmp,vtmp)
-!          ufg(j,:,i)=utmp 
-!          vfg(j,:,i)=vtmp
         enddo !j
       enddo !i
       we=0
@@ -2969,8 +2787,6 @@
 
       rkappa=0.4
       rkn=30*z0 !physical roughness
-!      wr = sqrt(g*WNum*Tanh(Wnum*Depth)) !angular freq.
-!      Ubm = Wheight*wr/Sinh(Wnum*Depth) !orbital vel.
       taub=sqrt(taubx**2+tauby**2)
       phi_c=atan2(tauby,taubx) !current dir
       phi_cw=phi_c+wdir/180*pi+pi/2 !convert to math convention
@@ -3063,13 +2879,10 @@
         wild(3,2)=ynd(elnode(3,nnel))
       else !lat/lon
         nd=elnode(1,nnel)
-!mpch        call project_pt('g2l',xnd(nd),ynd(nd),znd(nd),gcor0,frame0,wild(1,1),wild(1,2),tmp)
         call global_to_local_pt_project(xnd(nd),ynd(nd),znd(nd),gcor0,frame0,wild(1,1),wild(1,2),tmp)
         nd=elnode(2,nnel)
-!mpch        call project_pt('g2l',xnd(nd),ynd(nd),znd(nd),gcor0,frame0,wild(2,1),wild(2,2),tmp)
         call global_to_local_pt_project(xnd(nd),ynd(nd),znd(nd),gcor0,frame0,wild(2,1),wild(2,2),tmp)
         nd=elnode(3,nnel)
-!mpch        call project_pt('g2l',xnd(nd),ynd(nd),znd(nd),gcor0,frame0,wild(3,1),wild(3,2),tmp)
         call global_to_local_pt_project(xnd(nd),ynd(nd),znd(nd),gcor0,frame0,wild(3,1),wild(3,2),tmp)
       endif !ics
 

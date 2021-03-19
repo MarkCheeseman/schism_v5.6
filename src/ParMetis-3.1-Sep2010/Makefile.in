@@ -1,11 +1,10 @@
 
 # Which compiler to use
-CC = mpicc
+CC = scorep mpicc
 
 
 # What optimization level to use
 OPTFLAGS = -O3 -align -xCASCADELAKE -mkl -qopt-prefetch=2 -unroll-aggressive 
-#OPTFLAGS = -O3 -align -xKNL -mkl -qopt-prefetch=2 -unroll-aggressive 
 
 # Include directories for the compiler
 INCDIR =
